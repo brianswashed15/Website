@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.DS_Store
+.env
+
+# Videos too large for GitHub — deployed via Netlify directly
+assets/videos/
