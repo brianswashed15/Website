@@ -43,10 +43,11 @@
         <button class="work-nav-btn" data-category="vfx-3d">VFX/3D</button>
       </nav>
 
-      <!-- Work grid — horizontal expandable cards -->
-      <div class="work-grid" id="workGrid">
-
-        <!-- ═══ MOTION GRAPHICS ═══ -->
+      <!-- Work sections — each category in its own row -->
+      <section class="work-section" data-section="motion-graphics">
+        <h2 class="work-section-title">Motion Graphics</h2>
+        <div class="work-grid-wrap">
+          <div class="work-grid">
         <article class="work-card" data-category="motion-graphics">
           <div class="work-card-media">
             <video src="assets/videos/motion-graphics/wendys-mg-2.mp4#t=0.5" muted loop playsinline preload="metadata" data-video></video>
@@ -206,8 +207,15 @@
             <p>Motion graphics for Amazon Audible campaign.</p>
           </div>
         </article>
+          </div>
+          <div class="scroll-indicator" aria-hidden="true">›</div>
+        </div>
+      </section>
 
-        <!-- ═══ MIXED MEDIA ═══ -->
+      <section class="work-section" data-section="mixed-media">
+        <h2 class="work-section-title">Mixed Media</h2>
+        <div class="work-grid-wrap">
+          <div class="work-grid">
         <article class="work-card" data-category="mixed-media">
           <div class="work-card-media">
             <video src="assets/videos/mixed-media/twice-mm.mp4#t=0.5" muted loop playsinline preload="metadata" data-video></video>
@@ -287,8 +295,15 @@
             <p>Mixed media edit for beabadoobee — Apple Cider.</p>
           </div>
         </article>
+          </div>
+          <div class="scroll-indicator" aria-hidden="true">›</div>
+        </div>
+      </section>
 
-        <!-- ═══ VFX / 3D ═══ -->
+      <section class="work-section" data-section="vfx-3d">
+        <h2 class="work-section-title">VFX / 3D</h2>
+        <div class="work-grid-wrap">
+          <div class="work-grid">
         <article class="work-card" data-category="vfx-3d">
           <div class="work-card-media">
             <video src="assets/videos/VFX-3D/shes-my-collar-1.mp4#t=0.5" muted loop playsinline preload="metadata" data-video></video>
@@ -358,8 +373,11 @@
             <p>VFX and 3D work for Le Sserafim — Crazy.</p>
           </div>
         </article>
+          </div>
+          <div class="scroll-indicator" aria-hidden="true">›</div>
+        </div>
+      </section>
 
-      </div>
     </div>
   </main>
 

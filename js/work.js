@@ -25,37 +25,63 @@
   'use strict';
 
   const nav = document.getElementById('workNav');
-  const grid = document.getElementById('workGrid');
-  if (!nav || !grid) return;
+  const sections = document.querySelectorAll('.work-section');
+  const grids = document.querySelectorAll('.work-grid');
+  const cards = document.querySelectorAll('.work-card');
+  if (!sections.length) return;
 
-  const buttons = nav.querySelectorAll('.work-nav-btn');
-  const cards = grid.querySelectorAll('.work-card');
+  const buttons = nav ? nav.querySelectorAll('.work-nav-btn') : [];
+  const isMobile = () => window.innerWidth < 481;
 
-  // ── Category filtering ──
+  // ── Category filtering (mobile only) ──
   function filterCategory(category) {
     buttons.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.category === category);
     });
 
-    cards.forEach(card => {
-      const match = card.dataset.category === category;
-      card.style.display = match ? '' : 'none';
-      card.classList.remove('active');
+    sections.forEach(sec => {
+      const match = sec.dataset.section === category;
+      sec.hidden = !match;
     });
 
-    // Reset scroll position to start of grid
-    grid.scrollLeft = 0;
-
-    // Pause all card videos on category switch
+    cards.forEach(card => card.classList.remove('active'));
     if (window.RiyoVideo) window.RiyoVideo.setActiveCardVideo(null);
   }
 
+  // Show all sections on desktop, filter on mobile
+  function handleResize() {
+    if (isMobile()) {
+      const activeBtn = nav && nav.querySelector('.work-nav-btn.active');
+      const cat = activeBtn ? activeBtn.dataset.category : 'motion-graphics';
+      filterCategory(cat);
+    } else {
+      sections.forEach(sec => { sec.hidden = false; });
+    }
+  }
+
   buttons.forEach(btn => {
-    btn.addEventListener('click', () => filterCategory(btn.dataset.category));
+    btn.addEventListener('click', () => {
+      if (isMobile()) filterCategory(btn.dataset.category);
+    });
   });
 
-  // Default to Motion Graphics
-  filterCategory('motion-graphics');
+  handleResize();
+  window.addEventListener('resize', handleResize);
+
+  // ── Scroll indicator visibility ──
+  function updateScrollIndicators() {
+    document.querySelectorAll('.work-grid-wrap').forEach(wrap => {
+      const grid = wrap.querySelector('.work-grid');
+      const indicator = wrap.querySelector('.scroll-indicator');
+      if (!grid || !indicator) return;
+      const atEnd = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 10;
+      indicator.classList.toggle('hidden', atEnd);
+    });
+  }
+
+  grids.forEach(g => g.addEventListener('scroll', updateScrollIndicators, { passive: true }));
+  updateScrollIndicators();
+  window.addEventListener('resize', updateScrollIndicators);
 
   // ── Card expand / collapse (click toggles, only one open at a time) ──
   cards.forEach(card => {
@@ -68,14 +94,11 @@
       // Toggle this card
       if (!wasActive) {
         card.classList.add('active');
-        // Play this card's video
         if (window.RiyoVideo) window.RiyoVideo.setActiveCardVideo(card);
-        // Scroll into view on mobile
-        if (window.innerWidth < 481) {
+        if (isMobile()) {
           setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 120);
         }
       } else {
-        // Collapsed — pause all card videos
         if (window.RiyoVideo) window.RiyoVideo.setActiveCardVideo(null);
       }
     });

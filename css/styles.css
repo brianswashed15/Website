@@ -271,6 +271,14 @@ p{color:var(--c-text-muted);max-width:56ch}
 .work-nav-btn.active{background:#fff;color:#0a0a0a;border-color:#fff}
 
 /* Work cards — expandable (ref: yudiz expandable slider) */
+.work-section{margin-bottom:var(--space-xl)}
+.work-section-title{
+  font-size:clamp(1rem,2.5vw,1.35rem);
+  font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  margin:0 0 var(--space-md);color:var(--c-text);
+}
+
+.work-grid-wrap{position:relative}
 .work-grid{
   display:flex;
   gap:var(--space-md);
@@ -328,10 +336,31 @@ p{color:var(--c-text-muted);max-width:56ch}
 }
 .work-card.active .work-card-info p{opacity:1;transform:translateY(0)}
 
+/* Scroll indicator arrow */
+.scroll-indicator{
+  position:absolute;right:0;top:0;bottom:var(--space-xl);width:48px;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(to right,transparent,rgba(10,10,10,.85) 60%);
+  color:rgba(255,255,255,.5);font-size:1.6rem;font-weight:300;
+  pointer-events:none;
+  transition:opacity .3s ease;
+}
+.scroll-indicator.hidden{opacity:0}
+
 @media(max-width:480px){
+  .work-nav{display:flex}
+  .work-section-title{display:none}
+  .work-section{margin-bottom:0}
+  .work-section[hidden]{display:none}
+  .work-grid-wrap{position:static}
+  .scroll-indicator{display:none}
   .work-grid{flex-direction:column;overflow-x:visible}
   .work-card{flex:none!important;width:100%;height:clamp(220px,60vw,300px)}
   .work-card.active{width:100%;height:clamp(300px,80vw,420px)}
+}
+
+@media(min-width:481px){
+  .work-nav{display:none}
 }
 
 /* ============================================================
