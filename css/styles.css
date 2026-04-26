@@ -81,8 +81,8 @@ p{color:var(--c-text-muted);max-width:56ch}
   border-bottom:1px solid var(--c-border);transition:background var(--transition-fast);
 }
 .header-inner{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:var(--max-w);margin:0 auto;padding:0 var(--space-md)}
-.logo{font-weight:700;font-size:1.05rem;letter-spacing:.04em;white-space:nowrap}
-.logo span{font-weight:300;opacity:.6;margin-left:.2em}
+.logo{display:flex;align-items:center}
+.logo-img{height:42px;width:auto;display:block}
 
 .nav-links{display:flex;gap:var(--space-lg);align-items:center}
 .nav-links a{font-size:.85rem;letter-spacing:.06em;text-transform:uppercase;position:relative;padding:.25em 0;transition:color var(--transition-fast)}
