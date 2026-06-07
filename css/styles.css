@@ -336,16 +336,19 @@ p{color:var(--c-text-muted);max-width:56ch}
 }
 .work-card.active .work-card-info p{opacity:1;transform:translateY(0)}
 
-/* Scroll indicator arrow */
-.scroll-indicator{
-  position:absolute;right:0;top:0;bottom:var(--space-xl);width:48px;
+/* Scroll buttons (left/right) — only on desktop */
+.scroll-btn{
+  position:absolute;top:0;bottom:var(--space-xl);width:56px;
   display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(to right,transparent,rgba(10,10,10,.85) 60%);
-  color:rgba(255,255,255,.5);font-size:1.6rem;font-weight:300;
-  pointer-events:none;
-  transition:opacity .3s ease;
+  border:0;background:transparent;color:rgba(255,255,255,.7);
+  font-size:2rem;font-weight:300;line-height:1;
+  cursor:pointer;z-index:2;
+  transition:color .2s ease,opacity .3s ease;
 }
-.scroll-indicator.hidden{opacity:0}
+.scroll-btn-prev{left:0;background:linear-gradient(to left,transparent,rgba(10,10,10,.85) 60%)}
+.scroll-btn-next{right:0;background:linear-gradient(to right,transparent,rgba(10,10,10,.85) 60%)}
+.scroll-btn:hover{color:#fff}
+.scroll-btn[hidden]{display:none}
 
 @media(max-width:480px){
   .work-nav{display:flex}
@@ -353,7 +356,7 @@ p{color:var(--c-text-muted);max-width:56ch}
   .work-section{margin-bottom:0}
   .work-section[hidden]{display:none}
   .work-grid-wrap{position:static}
-  .scroll-indicator{display:none}
+  .scroll-btn{display:none}
   .work-grid{flex-direction:column;overflow-x:visible}
   .work-card{flex:none!important;width:100%;height:clamp(220px,60vw,300px)}
   .work-card.active{width:100%;height:clamp(300px,80vw,420px)}
