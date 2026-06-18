@@ -68,20 +68,38 @@
   handleResize();
   window.addEventListener('resize', handleResize);
 
-  // ── Scroll indicator visibility ──
-  function updateScrollIndicators() {
+  // ── Scroll buttons (prev/next) + visibility ──
+  function updateScrollButtons() {
     document.querySelectorAll('.work-grid-wrap').forEach(wrap => {
       const grid = wrap.querySelector('.work-grid');
-      const indicator = wrap.querySelector('.scroll-indicator');
-      if (!grid || !indicator) return;
-      const atEnd = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 10;
-      indicator.classList.toggle('hidden', atEnd);
+      const prev = wrap.querySelector('.scroll-btn-prev');
+      const next = wrap.querySelector('.scroll-btn-next');
+      if (!grid) return;
+      const atStart = grid.scrollLeft <= 2;
+      const atEnd = grid.scrollLeft + grid.clientWidth >= grid.scrollWidth - 2;
+      if (prev) prev.hidden = atStart;
+      if (next) next.hidden = atEnd;
     });
   }
 
-  grids.forEach(g => g.addEventListener('scroll', updateScrollIndicators, { passive: true }));
-  updateScrollIndicators();
-  window.addEventListener('resize', updateScrollIndicators);
+  function scrollGrid(wrap, dir) {
+    const grid = wrap.querySelector('.work-grid');
+    if (!grid) return;
+    // Scroll by ~80% of visible width per click
+    const delta = grid.clientWidth * 0.8 * dir;
+    grid.scrollBy({ left: delta, behavior: 'smooth' });
+  }
+
+  document.querySelectorAll('.work-grid-wrap').forEach(wrap => {
+    const prev = wrap.querySelector('.scroll-btn-prev');
+    const next = wrap.querySelector('.scroll-btn-next');
+    if (prev) prev.addEventListener('click', e => { e.stopPropagation(); scrollGrid(wrap, -1); });
+    if (next) next.addEventListener('click', e => { e.stopPropagation(); scrollGrid(wrap, 1); });
+  });
+
+  grids.forEach(g => g.addEventListener('scroll', updateScrollButtons, { passive: true }));
+  updateScrollButtons();
+  window.addEventListener('resize', updateScrollButtons);
 
   // ── Card expand / collapse (click toggles, only one open at a time) ──
   cards.forEach(card => {
