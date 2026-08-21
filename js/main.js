@@ -63,6 +63,10 @@
     });
   }
 
+  // ── College hero: no video to gate the reveal, so trigger it directly ──
+  const collegeHero = document.querySelector('.college-hero');
+  if (collegeHero) requestAnimationFrame(() => collegeHero.classList.add('revealed'));
+
   // ── Header solidify on scroll ──
   const header = document.querySelector('.site-header');
   if (header) {
