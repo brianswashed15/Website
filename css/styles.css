@@ -393,6 +393,13 @@ p{color:var(--c-text-muted);max-width:56ch}
 .college-hero{background:#000}
 .college-hero .hero-bg{background:linear-gradient(160deg,#0a0a0a 0%,#1a1a2e 40%,#16213e 70%,#0a0a0a 100%)}
 
+/* This hero's headline runs several lines longer than the homepage's ("Riyo
+   Productions"). Centering a tall block inside a fixed 100svh section (the
+   shared .hero rule) pushed the top line up under the fixed header. Switch
+   to a padding-based layout sized to the content instead. */
+.college-hero{min-height:auto;display:block;padding-top:calc(var(--header-h) + var(--space-2xl));padding-bottom:var(--space-2xl)}
+.college-hero .hero-content{padding:0 var(--space-md)}
+
 /* Stat strip */
 .stat-strip-inner{display:flex;flex-wrap:wrap;gap:var(--space-lg);justify-content:center;text-align:center}
 .stat{flex:1 1 180px;display:flex;flex-direction:column;align-items:center;gap:.35em;padding:var(--space-md);border:1px solid var(--c-border);border-radius:var(--radius);background:var(--c-surface)}
