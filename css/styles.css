@@ -412,27 +412,25 @@ p{color:var(--c-text-muted);max-width:56ch}
    (Still used by the credibility-line placeholder below.) */
 .placeholder-note{margin-top:var(--space-md);padding:var(--space-sm) var(--space-md);border:1px dashed #f0094a;border-radius:var(--radius);color:#f0094a;font-size:.8rem;font-style:italic;max-width:none}
 
-/* Idea / ideation cards */
-.idea-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-md)}
-.idea-card{padding:var(--space-lg) var(--space-md);border:1px solid var(--c-border);border-radius:var(--radius);background:var(--c-surface)}
-.idea-card h3{margin-bottom:.5em}
-@media(max-width:768px){.idea-grid{grid-template-columns:1fr}}
+/* Narrative sections (story-style copy blocks: headline + short-line
+   paragraphs + emphasized beats). The global reset zeroes all margins,
+   so — matching this file's existing pattern of spacing via flex+gap
+   on a wrapper (see .contact-inner) rather than paragraph margins —
+   stacked copy blocks go inside .stack / .line-stack wrappers. */
+.stack{display:flex;flex-direction:column;gap:var(--space-md)}
+.stack-tight{gap:var(--space-sm)}
+.line-stack{display:flex;flex-direction:column;gap:.2em}
 
-/* Framework flow */
-.framework-flow{display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-md)}
-.framework-step{flex:1 1 200px;padding:var(--space-md);border:1px solid var(--c-border);border-radius:var(--radius);background:var(--c-surface)}
-.framework-step p{margin-top:.4em;color:var(--c-text)}
-.framework-arrow{font-size:1.5rem;color:var(--c-text-muted);flex:0 0 auto}
-.framework-caption{color:var(--c-text-muted);max-width:60ch}
-@media(max-width:768px){
-  .framework-flow{flex-direction:column;align-items:stretch}
-  .framework-arrow{transform:rotate(90deg);align-self:center}
-}
+/* An emphasized beat within narrative copy — not a heading, but reads
+   with more weight than the surrounding muted body text. */
+.emphasis-line{color:var(--c-text);font-weight:600;font-size:clamp(1.05rem,2vw,1.3rem);line-height:1.4;max-width:56ch}
+.college-hero-sub.emphasis-line{color:var(--c-text)}
 
 /* What we do */
 .wwd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-md)}
 .wwd-card{padding:var(--space-lg) var(--space-md);border:1px solid var(--c-border);border-radius:var(--radius);background:var(--c-surface)}
 .wwd-card h3{margin:.3em 0 .5em}
+.wwd-card-subhead{color:var(--c-text);font-weight:600}
 .wwd-card-lead{border-color:rgba(255,255,255,.25);background:var(--c-surface-2)}
 @media(max-width:768px){.wwd-grid{grid-template-columns:1fr}}
 
@@ -454,6 +452,16 @@ p{color:var(--c-text-muted);max-width:56ch}
 @media(max-width:640px){
   .case-study-photos{grid-template-columns:1fr 1fr}
 }
+
+.case-study-cta{margin-top:var(--space-lg)}
+
+/* What we bring — capability tags per phase, styled as pills (same
+   border/pill language as .contact-link and .work-nav-btn) */
+.brings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-md)}
+.brings-card{padding:var(--space-lg) var(--space-md);border:1px solid var(--c-border);border-radius:var(--radius);background:var(--c-surface)}
+.tag-list{display:flex;flex-wrap:wrap;gap:.5em;margin-top:var(--space-md)}
+.tag{padding:.4em 1em;border:1px solid var(--c-border);border-radius:50px;font-size:.78rem;letter-spacing:.03em;color:var(--c-text-muted)}
+@media(max-width:768px){.brings-grid{grid-template-columns:1fr}}
 
 /* Credibility line */
 .credibility-line{max-width:none;text-align:center}
