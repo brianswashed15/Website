@@ -475,6 +475,14 @@ p{color:var(--c-text-muted);max-width:56ch}
    hug its own text like the .contact-link-based buttons do */
 .btn-more-work.cta-accent{width:auto;height:auto;line-height:normal;display:inline-flex;align-items:center;justify-content:center;padding:.9em 2.2em}
 
+/* Final-CTA size boost — it's the only action in that section, so it
+   needs to read as obviously the thing to click rather than a small
+   pill competing with the copy above it. Scoped to .cta-large (used
+   only on this one button) rather than .contact-link itself, so the
+   homepage's smaller icon-link pills are untouched. */
+.cta-large{font-size:1.05rem;padding:1.1em 2.6em}
+.cta-large svg{width:22px;height:22px}
+
 /* Credibility line — now real copy (was a bracketed placeholder note,
    sized to width:none/no constraint); give it a readable centered
    measure and generous line-height, matching .about-blurb-text's
