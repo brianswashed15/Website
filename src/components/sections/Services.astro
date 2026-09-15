@@ -33,7 +33,7 @@ const COVER_WIDTHS = [980, 1960];
 const coverSrc = (url: string, width: number) =>
   `${url}?w=${width}&h=${Math.round((width * 594) / 977)}&fit=crop&auto=format`;
 
-const youtubeEmbedUrl = (value?: string) => {
+const youtubeVideoId = (value?: string) => {
   if (!value) return;
 
   try {
@@ -47,9 +47,7 @@ const youtubeEmbedUrl = (value?: string) => {
           : url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1]
         : undefined;
 
-    return videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId)
-      ? `https://www.youtube-nocookie.com/embed/${videoId}?playsinline=1&rel=0`
-      : undefined;
+    return videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId) ? videoId : undefined;
   } catch {
     return undefined;
   }
@@ -92,7 +90,10 @@ const youtubeEmbedUrl = (value?: string) => {
 
         <div class="panel" data-lenis-prevent>
           {services.map((service, index) => {
-            const youtubeUrl = youtubeEmbedUrl(service.coverVideoUrl);
+            const videoId = youtubeVideoId(service.coverVideoUrl);
+            const youtubeUrl = videoId
+              ? `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&playsinline=1&rel=0&disablekb=1&fs=0&iv_load_policy=3`
+              : undefined;
 
             return (
               <div
@@ -135,12 +136,24 @@ const youtubeEmbedUrl = (value?: string) => {
                     tabindex="-1"
                   />
                 ) : null}
-                {service.description && (
-                  <p class="cover__description">{service.description}</p>
-                )}
               </div>
             );
           })}
+          <div class="panel__descriptions">
+            {services.map((service, index) =>
+              service.description ? (
+                <p
+                  class:list={[
+                    "cover__description",
+                    { "is-active": index === 0 },
+                  ]}
+                  data-service-description
+                >
+                  {service.description}
+                </p>
+              ) : null,
+            )}
+          </div>
         </div>
       </div>
     ) : (
@@ -202,6 +215,9 @@ const youtubeEmbedUrl = (value?: string) => {
     const covers = Array.from(
       section.querySelectorAll<HTMLElement>("[data-service-cover]"),
     );
+    const descriptions = Array.from(
+      section.querySelectorAll<HTMLElement>("[data-service-description]"),
+    );
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -233,6 +249,7 @@ const youtubeEmbedUrl = (value?: string) => {
 
       video(active)?.pause();
       covers[active]?.classList.remove("is-active");
+      descriptions[active]?.classList.remove("is-active");
       plates[active]?.setAttribute("aria-pressed", "false");
       covers[active]
         ?.querySelector<HTMLIFrameElement>("iframe")
@@ -241,6 +258,7 @@ const youtubeEmbedUrl = (value?: string) => {
       active = index;
 
       covers[index]?.classList.add("is-active");
+      descriptions[index]?.classList.add("is-active");
       plates[index]?.setAttribute("aria-pressed", "true");
       covers[index]
         ?.querySelector<HTMLIFrameElement>("iframe")
@@ -850,7 +868,6 @@ const youtubeEmbedUrl = (value?: string) => {
 
   .cover__description {
     position: absolute;
-    z-index: 1;
     top: clamp(16px, 2.2vw, 32px);
     left: clamp(16px, 2.2vw, 32px);
     max-width: min(720px, calc(100% - clamp(32px, 4.4vw, 64px)));
@@ -861,6 +878,19 @@ const youtubeEmbedUrl = (value?: string) => {
     font-size: var(--text-b2);
     line-height: var(--leading-body);
     pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition-hover);
+  }
+
+  .panel__descriptions {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .cover__description.is-active {
+    opacity: 1;
   }
 
   /* The lens goes on the cover rather than on either medium, so a still and the
@@ -955,8 +985,13 @@ const youtubeEmbedUrl = (value?: string) => {
 
     .cover,
     .cover__video,
+    .cover__description,
     .plate__button {
       transition: none;
+    }
+
+    .cover__embed {
+      display: none;
     }
 
     /* The drift is motion tied to the scroll, which is exactly the kind this
