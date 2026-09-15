@@ -52,12 +52,12 @@ const { wordmark, logoUrl, logoAlt, links } = navigation;
         <Button
           href={link.href}
           variant={link.variant}
-          arrow={link.arrow && link.href !== "#contact"}
+          arrow={link.arrow && !link.href.startsWith("mailto:")}
           external={link.external}
         >
           {link.label}
           {
-            link.arrow && link.href === "#contact" && (
+            link.arrow && link.href.startsWith("mailto:") && (
               <svg slot="icon-end" viewBox="0 0 24 24" fill="none">
                 <path
                   fill-rule="evenodd"

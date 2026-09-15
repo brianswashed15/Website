@@ -300,12 +300,21 @@ const FOOTER_SECTION_QUERY = defineQuery(/* groq */ `
  * Used until the Studio has a published siteSettings document, and whenever the
  * build runs without Sanity credentials.
  */
+/**
+ * Editors type a bare address into link fields ("work@riyoproductions.com"),
+ * which a browser would resolve as a relative path. Anything that is only an
+ * email address becomes a mailto: link; every other value passes through.
+ */
+function toHref(href: string): string {
+  return /^[^\s@/:]+@[^\s@/]+\.[^\s@/]+$/.test(href) ? `mailto:${href}` : href;
+}
+
 export const NAVIGATION_FALLBACK: Navigation = {
   wordmark: "Riyo Productions",
   links: [
     { label: "Work", href: "/work", variant: "white", arrow: false, external: false },
     { label: "About", href: "/about", variant: "white", arrow: false, external: false },
-    { label: "Contact us", href: "#contact", variant: "green", arrow: true, external: false },
+    { label: "Contact us", href: "mailto:work@riyoproductions.com", variant: "green", arrow: true, external: false },
   ],
 };
 
@@ -351,7 +360,7 @@ export const ABOUT_PAGE_FALLBACK: AboutPageSection = {
 export const CONTACT_SECTION_FALLBACK: ContactSection = {
   heading: "Let's give your story motion.",
   callToActionLabel: "Get in touch",
-  callToActionHref: "#contact",
+  callToActionHref: "mailto:work@riyoproductions.com",
 };
 
 /**
@@ -464,7 +473,9 @@ export async function getNavigation(): Promise<Navigation> {
     NAVIGATION_QUERY,
   );
 
-  const links = navigation?.links?.filter((link) => link?.label && link?.href);
+  const links = navigation?.links
+    ?.filter((link) => link?.label && link?.href)
+    .map((link) => ({ ...link, href: toHref(link.href) }));
 
   return {
     wordmark: navigation?.wordmark || NAVIGATION_FALLBACK.wordmark,
@@ -569,8 +580,9 @@ export async function getContactSection(): Promise<ContactSection> {
     heading: section?.heading || CONTACT_SECTION_FALLBACK.heading,
     callToActionLabel:
       section?.callToActionLabel || CONTACT_SECTION_FALLBACK.callToActionLabel,
-    callToActionHref:
+    callToActionHref: toHref(
       section?.callToActionHref || CONTACT_SECTION_FALLBACK.callToActionHref,
+    ),
   };
 }
 

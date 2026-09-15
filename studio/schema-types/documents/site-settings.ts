@@ -167,7 +167,9 @@ export const siteSettings = defineType({
           name: "callToActionHref",
           title: "Call to action link",
           type: "string",
-          initialValue: "#contact",
+          description:
+            "A path, a full https URL, or an email address such as work@riyoproductions.com.",
+          initialValue: "mailto:work@riyoproductions.com",
           validation: (rule) => rule.required(),
         }),
       ],

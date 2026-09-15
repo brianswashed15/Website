@@ -17,7 +17,7 @@ export const navLink = defineType({
       name: "href",
       title: "Link",
       description:
-        "An internal path such as /work or #contact, or a full https URL.",
+        "An internal path such as /work, a full https URL, or an email address.",
       type: "string",
       validation: (rule) => rule.required(),
     }),
