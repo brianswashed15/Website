@@ -120,7 +120,7 @@ const youtubeVideoId = (value?: string) => {
                     src={youtubeUrl}
                     title={`${service.title} video`}
                     loading="lazy"
-                    tabindex={index === 0 ? "0" : "-1"}
+                    tabindex="-1"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowfullscreen
                     referrerpolicy="strict-origin-when-cross-origin"
@@ -251,18 +251,12 @@ const youtubeVideoId = (value?: string) => {
       covers[active]?.classList.remove("is-active");
       descriptions[active]?.classList.remove("is-active");
       plates[active]?.setAttribute("aria-pressed", "false");
-      covers[active]
-        ?.querySelector<HTMLIFrameElement>("iframe")
-        ?.setAttribute("tabindex", "-1");
 
       active = index;
 
       covers[index]?.classList.add("is-active");
       descriptions[index]?.classList.add("is-active");
       plates[index]?.setAttribute("aria-pressed", "true");
-      covers[index]
-        ?.querySelector<HTMLIFrameElement>("iframe")
-        ?.setAttribute("tabindex", "0");
       play(index);
     };
 
@@ -856,10 +850,6 @@ const youtubeVideoId = (value?: string) => {
     inset: 0;
     border: 0;
     pointer-events: none;
-  }
-
-  .cover.is-active .cover__embed {
-    pointer-events: auto;
   }
 
   .cover.is-embed-ready img {
