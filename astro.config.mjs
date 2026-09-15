@@ -1,6 +1,7 @@
 import { defineConfig, fontProviders } from "astro/config";
 
 export default defineConfig({
+  site: "https://riyoproductions.com",
   fonts: [
     {
       provider: fontProviders.google(),
