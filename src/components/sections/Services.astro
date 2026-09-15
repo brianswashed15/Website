@@ -90,7 +90,7 @@ const youtubeEmbedUrl = (value?: string) => {
           ))}
         </ul>
 
-        <div class="panel" aria-hidden="true">
+        <div class="panel" data-lenis-prevent>
           {services.map((service, index) => {
             const youtubeUrl = youtubeEmbedUrl(service.coverVideoUrl);
 
@@ -119,8 +119,9 @@ const youtubeEmbedUrl = (value?: string) => {
                     src={youtubeUrl}
                     title={`${service.title} video`}
                     loading="lazy"
-                    tabindex="-1"
-                    allow="encrypted-media; picture-in-picture"
+                    tabindex={index === 0 ? "0" : "-1"}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowfullscreen
                     referrerpolicy="strict-origin-when-cross-origin"
                   />
                 ) : service.coverVideoUrl ? (
@@ -230,11 +231,17 @@ const youtubeEmbedUrl = (value?: string) => {
       video(active)?.pause();
       covers[active]?.classList.remove("is-active");
       plates[active]?.setAttribute("aria-pressed", "false");
+      covers[active]
+        ?.querySelector<HTMLIFrameElement>("iframe")
+        ?.setAttribute("tabindex", "-1");
 
       active = index;
 
       covers[index]?.classList.add("is-active");
       plates[index]?.setAttribute("aria-pressed", "true");
+      covers[index]
+        ?.querySelector<HTMLIFrameElement>("iframe")
+        ?.setAttribute("tabindex", "0");
       play(index);
     };
 
@@ -596,6 +603,11 @@ const youtubeEmbedUrl = (value?: string) => {
 
     for (const cover of covers) {
       cover
+        .querySelector<HTMLIFrameElement>("iframe")
+        ?.addEventListener("load", () => cover.classList.add("is-embed-ready"), {
+          once: true,
+        });
+      cover
         .querySelector<HTMLVideoElement>("video")
         ?.addEventListener("playing", (event) => {
           (event.currentTarget as HTMLVideoElement).classList.add("is-playing");
@@ -823,6 +835,14 @@ const youtubeEmbedUrl = (value?: string) => {
     inset: 0;
     border: 0;
     pointer-events: none;
+  }
+
+  .cover.is-active .cover__embed {
+    pointer-events: auto;
+  }
+
+  .cover.is-embed-ready img {
+    visibility: hidden;
   }
 
   /* The lens goes on the cover rather than on either medium, so a still and the
