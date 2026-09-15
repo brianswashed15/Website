@@ -115,16 +115,18 @@ const youtubeVideoId = (value?: string) => {
                   />
                 )}
                 {youtubeUrl ? (
-                  <iframe
-                    class="cover__embed"
-                    src={youtubeUrl}
-                    title={`${service.title} video`}
-                    loading="lazy"
-                    tabindex="-1"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowfullscreen
-                    referrerpolicy="strict-origin-when-cross-origin"
-                  />
+                  <div class="cover__embed-frame">
+                    <iframe
+                      class="cover__embed"
+                      src={youtubeUrl}
+                      title={`${service.title} video`}
+                      loading="lazy"
+                      tabindex="-1"
+                      allow="autoplay; encrypted-media"
+                      referrerpolicy="strict-origin-when-cross-origin"
+                    />
+                    <span class="cover__embed-shield" aria-hidden="true"></span>
+                  </div>
                 ) : service.coverVideoUrl ? (
                   <video
                     class="cover__video"
@@ -839,17 +841,33 @@ const youtubeVideoId = (value?: string) => {
 
   .cover img,
   .cover__video,
-  .cover__embed {
+  .cover__embed-frame {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  .cover__embed {
+  .cover__embed-frame {
     position: absolute;
     inset: 0;
+    overflow: hidden;
+  }
+
+  .cover__embed {
+    position: absolute;
+    /* YouTube permanently renders title/branding inside its iframe. Overscan
+       crops those top and bottom chrome regions outside the panel. */
+    inset: -12% 0;
+    width: 100%;
+    height: 124%;
     border: 0;
     pointer-events: none;
+  }
+
+  .cover__embed-shield {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
   }
 
   .cover.is-embed-ready img {
@@ -980,7 +998,7 @@ const youtubeVideoId = (value?: string) => {
       transition: none;
     }
 
-    .cover__embed {
+    .cover__embed-frame {
       display: none;
     }
 
