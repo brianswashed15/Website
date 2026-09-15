@@ -32,6 +32,28 @@ const services = content.services;
 const COVER_WIDTHS = [980, 1960];
 const coverSrc = (url: string, width: number) =>
   `${url}?w=${width}&h=${Math.round((width * 594) / 977)}&fit=crop&auto=format`;
+
+const youtubeEmbedUrl = (value?: string) => {
+  if (!value) return;
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "");
+    const videoId = host === "youtu.be"
+      ? url.pathname.split("/").filter(Boolean)[0]
+      : ["youtube.com", "m.youtube.com"].includes(host)
+        ? url.pathname === "/watch"
+          ? url.searchParams.get("v")
+          : url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1]
+        : undefined;
+
+    return videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId)
+      ? `https://www.youtube-nocookie.com/embed/${videoId}?playsinline=1&rel=0`
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
 ---
 
 <section
@@ -69,38 +91,52 @@ const coverSrc = (url: string, width: number) =>
         </ul>
 
         <div class="panel" aria-hidden="true">
-          {services.map((service, index) => (
-            <div
-              class:list={["cover", { "is-active": index === 0 }]}
-              data-service-cover
-            >
-              {service.coverUrl && (
-                <img
-                  src={coverSrc(service.coverUrl, 980)}
-                  srcset={COVER_WIDTHS.map(
-                    (width) => `${coverSrc(service.coverUrl!, width)} ${width}w`,
-                  ).join(", ")}
-                  sizes="(min-width: 900px) 68vw, 100vw"
-                  width="980"
-                  height="594"
-                  alt=""
-                  loading={index === 0 ? "eager" : "lazy"}
-                  decoding="async"
-                />
-              )}
-              {service.coverVideoUrl && (
-                <video
-                  class="cover__video"
-                  src={service.coverVideoUrl}
-                  preload="none"
-                  muted
-                  loop
-                  playsinline
-                  tabindex="-1"
-                />
-              )}
-            </div>
-          ))}
+          {services.map((service, index) => {
+            const youtubeUrl = youtubeEmbedUrl(service.coverVideoUrl);
+
+            return (
+              <div
+                class:list={["cover", { "is-active": index === 0 }]}
+                data-service-cover
+              >
+                {service.coverUrl && (
+                  <img
+                    src={coverSrc(service.coverUrl, 980)}
+                    srcset={COVER_WIDTHS.map(
+                      (width) => `${coverSrc(service.coverUrl!, width)} ${width}w`,
+                    ).join(", ")}
+                    sizes="(min-width: 900px) 68vw, 100vw"
+                    width="980"
+                    height="594"
+                    alt=""
+                    loading={index === 0 ? "eager" : "lazy"}
+                    decoding="async"
+                  />
+                )}
+                {youtubeUrl ? (
+                  <iframe
+                    class="cover__embed"
+                    src={youtubeUrl}
+                    title={`${service.title} video`}
+                    loading="lazy"
+                    tabindex="-1"
+                    allow="encrypted-media; picture-in-picture"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                  />
+                ) : service.coverVideoUrl ? (
+                  <video
+                    class="cover__video"
+                    src={service.coverVideoUrl}
+                    preload="none"
+                    muted
+                    loop
+                    playsinline
+                    tabindex="-1"
+                  />
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
     ) : (
@@ -775,10 +811,18 @@ const coverSrc = (url: string, width: number) =>
   }
 
   .cover img,
-  .cover__video {
+  .cover__video,
+  .cover__embed {
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .cover__embed {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    pointer-events: none;
   }
 
   /* The lens goes on the cover rather than on either medium, so a still and the

@@ -31,7 +31,7 @@ export const service = defineType({
       name: "coverVideoUrl",
       title: "Cover video URL",
       description:
-        "Optional. Plays over the cover image in the services panel, so it must be a direct playback file (a Mux .mp4 or .m3u8). A Vimeo or YouTube page URL needs an iframe and will not play here. The cover image is what shows until it has frames.",
+        "Optional. Accepts a direct playback file (such as Mux .mp4 or .m3u8) or a YouTube watch, share, Shorts, or embed URL. YouTube videos appear in a privacy-enhanced iframe without autoplay.",
       type: "url",
       validation: (rule) => rule.uri({ scheme: ["http", "https"] }),
     }),
