@@ -1,0 +1,59 @@
+---
+/**
+ * The two vertical hairlines marking the page's left and right margins: the
+ * outer edges of the first and twelfth columns of the layout grid.
+ *
+ * Purely decorative, so it is hidden from assistive technology and never
+ * intercepts pointer events. Unlike the Shift+G development grid in
+ * ColumnGrid.astro, this is part of the design and visible at every width
+ * above the mobile breakpoint — on phones the margins are too narrow for the
+ * lines to read as a grid, so they are dropped.
+ *
+ * The section it is dropped into must establish a positioning context, which
+ * in practice means `position: relative`.
+ *
+ * Horizontal rules that cross these lines must be drawn inside the padding box
+ * (e.g. a bottom-edge background gradient), not as CSS borders — borders sit
+ * outside the absolute containing block, so the strokes would not share pixels.
+ * Where both hairlines paint, the semi-transparent ink composites to a lighter
+ * cross.
+ */
+---
+
+<div class="vertical-edges" aria-hidden="true"></div>
+
+<style>
+  .vertical-edges {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  /* Same hairline as the section rules. Stacked over a horizontal rule, the
+     two paper-at-19% strokes composite to a brighter intersection. */
+  .vertical-edges::before,
+  .vertical-edges::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    width: var(--border-hairline-width);
+    background-color: var(--border-hairline);
+  }
+
+  .vertical-edges::before {
+    inset-inline-start: var(--grid-margin);
+  }
+
+  .vertical-edges::after {
+    inset-inline-end: var(--grid-margin);
+  }
+
+  /* Mobile: no vertical rules. The margins collapse to ~30px here, so the two
+     hairlines crowd the content instead of framing it. */
+  @media (max-width: 699px) {
+    .vertical-edges::before,
+    .vertical-edges::after {
+      content: none;
+    }
+  }
+</style>

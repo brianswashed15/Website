@@ -1,0 +1,69 @@
+---
+/**
+ * The muted heading that opens a page section — selected work, brands and
+ * clients, services. Right-aligned, held half a column off the page's right
+ * hairline so it hangs inside the grid rather than sitting on the rule, and
+ * arriving without travelling.
+ *
+ * It is one component rather than three copies because the rhythm is the
+ * point: two sections in a row have to open the same way, and the moment the
+ * spacing is authored separately in each section it drifts. The air above the
+ * heading belongs to the section, so it stays there as
+ * `--section-heading-space`; the gap down to the first thing under the heading
+ * belongs to the heading, and is set here.
+ *
+ * The `id` is a prop because `aria-labelledby` needs a target that is unique on
+ * the page, and more than one section carries this heading.
+ */
+interface Props {
+  /** Wired to the owning section's `aria-labelledby`. Unique per page. */
+  id: string;
+}
+
+const { id } = Astro.props;
+---
+
+<h2 id={id} class="section-heading" data-reveal><slot /></h2>
+
+<script>
+  import "../../scripts/reveal";
+</script>
+
+<style>
+  .section-heading {
+    /* One column of the 12-column grid. The percentage resolves against this
+       element's containing block, which is the section's content box and so
+       exactly the grid width. */
+    --column-width: calc((100% - 11 * var(--grid-gutter)) / 12);
+
+    margin: 0 0 var(--section-heading-gap);
+    padding-right: calc(var(--column-width) / 2);
+    font-size: var(--text-h2);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-heading);
+    text-align: end;
+    color: var(--ink-muted);
+  }
+
+  /* A section heading is the least important thing in its section, so it gets
+     the least motion: it arrives without travelling. */
+  :global(.js) .section-heading {
+    opacity: 0;
+  }
+
+  :global(.js) .section-heading.is-revealed {
+    opacity: 1;
+    transition: opacity var(--transition-text);
+  }
+
+  /* Below this width the vertical hairlines are dropped, so there is no longer
+     a rule on the right to hang off — the same breakpoint VerticalEdges uses,
+     because it is the same reason. */
+  @media (max-width: 699px) {
+    .section-heading {
+      padding-right: 0;
+      text-align: start;
+    }
+  }
+</style>

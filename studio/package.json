@@ -1,0 +1,24 @@
+{
+  "name": "riyo-productions-studio",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "sanity dev",
+    "start": "sanity start",
+    "build": "sanity build",
+    "deploy": "sanity deploy",
+    "typegen": "sanity schema extract --path schema.json && sanity typegen generate"
+  },
+  "dependencies": {
+    "@sanity/color-input": "^5.0.4",
+    "@sanity/icons": "^3.7.4",
+    "@sanity/vision": "^4.10.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "sanity": "^4.10.0",
+    "styled-components": "^6.1.19"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

@@ -1,0 +1,618 @@
+---
+/**
+ * The native cursor is replaced with a small square and a dashed crosshair
+ * reading out its viewport coordinate, a coordinate/blueprint treatment
+ * reinforcing the grid-margin vocabulary the rest of the page already uses.
+ * `gridSelector` — the featured grid's tiles — is the one place it stands
+ * down, because the grid has a hover-label treatment of its own; see
+ * Hero.astro.
+ *
+ * The navbar used to stand down too, on the grounds that a bar is chrome
+ * rather than page. It does not any more: the square blinked out every time
+ * the pointer crossed into the bar and came back on its links, which read as
+ * the effect faulting rather than as a boundary being kept. The crosshair
+ * lines are behind page content, and the bar's background is opaque, so what
+ * actually shows up there is the square and its readout alone.
+ *
+ * Hovering a button while active snaps the crosshair onto its four edges
+ * instead of following the raw cursor, and the square morphs into four
+ * corner brackets sitting on the button's own corners — the readout locking
+ * onto the target rather than just pointing near it. Buttons rendered by
+ * Button.astro are picked up by their `.button` class; anything hand-rolled
+ * that reads as a button opts in with `data-coord-snap` (see SNAP_SELECTOR).
+ *
+ * The lines and the cursor replacement are two independent fixed layers, not
+ * one: the lines sit at a negative z-index, below every bit of ordinary page
+ * content (images, video, tiles, button fills) including the hero, while the
+ * square and its coordinate stay above everything, same as a native cursor
+ * would. A single wrapping
+ * `position: fixed` element can't do both — once a fixed element is placed
+ * in the page's stacking order, its whole subtree paints together at that
+ * position, so the two pieces need their own stacking contexts.
+ *
+ * Gated to hover-capable, fine-pointer input in CSS: touch has no persistent
+ * cursor position for a crosshair to track.
+ */
+interface Props {
+  gridSelector?: string;
+}
+
+const { gridSelector = ".hero__grid" } = Astro.props;
+---
+
+<div data-coord-cursor data-grid-selector={gridSelector}>
+  <div class="coord-cursor-lines" data-coord-lines aria-hidden="true">
+    <div class="coord-cursor__line coord-cursor__line--h" data-coord-line-h>
+    </div>
+    <div class="coord-cursor__line coord-cursor__line--v" data-coord-line-v>
+    </div>
+    <!-- Only meaningful while snapped to a button: the crosshair's far
+         edges (bottom and right), the near edges being lineH/lineV above. -->
+    <div class="coord-cursor__line coord-cursor__line--h coord-cursor__line--snap-only" data-coord-line-h2>
+    </div>
+    <div class="coord-cursor__line coord-cursor__line--v coord-cursor__line--snap-only" data-coord-line-v2>
+    </div>
+  </div>
+  <!-- Invisible; exists only so the script can read --grid-margin back as a
+       resolved pixel value (it's a min()/vw expression, not a plain length,
+       so it can't be parsed from the custom property's text directly). -->
+  <div class="coord-cursor__margin-probe" data-coord-margin-probe aria-hidden="true">
+  </div>
+  <div class="coord-cursor-marker" data-coord-marker aria-hidden="true">
+    <div class="coord-cursor__dot" data-coord-dot></div>
+    <div class="coord-cursor__corner coord-cursor__corner--tl" data-coord-corner-tl>
+    </div>
+    <div class="coord-cursor__corner coord-cursor__corner--tr" data-coord-corner-tr>
+    </div>
+    <div class="coord-cursor__corner coord-cursor__corner--bl" data-coord-corner-bl>
+    </div>
+    <div class="coord-cursor__corner coord-cursor__corner--br" data-coord-corner-br>
+    </div>
+    <div class="coord-cursor__label" data-coord-label></div>
+  </div>
+</div>
+
+<style>
+  .coord-cursor-lines,
+  .coord-cursor-marker {
+    display: none;
+    position: fixed;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-hover);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .coord-cursor-lines,
+    .coord-cursor-marker {
+      display: block;
+    }
+  }
+
+  .coord-cursor-lines.is-active,
+  .coord-cursor-marker.is-active {
+    opacity: 1;
+  }
+
+  .coord-cursor-lines.is-hidden {
+    opacity: 0;
+  }
+
+  /* Beneath ordinary page content (section backgrounds, tiles, video,
+     button fills) but above the page's own background, so the lines only
+     show through in the negative space between things. */
+  .coord-cursor-lines {
+    z-index: -1;
+  }
+
+  /* The cursor replacement itself stays above everything, same as a native
+     cursor would — including the sticky navbar (z-index 100), whose buttons
+     snap into this layer. Below GrainOverlay's 9998 so the print sheet still
+     covers the mark. */
+  .coord-cursor-marker {
+    z-index: 110;
+  }
+
+  /* Replaces the native cursor everywhere the effect is active, including
+     over links and buttons, which otherwise set their own `cursor: pointer`.
+     Scoped to the toggled body class, so it never reaches other pages. */
+  :global(body.coord-cursor-active),
+  :global(body.coord-cursor-active *) {
+    cursor: none !important;
+  }
+
+  /* Position only ever animates while snapping onto (or off of) a button —
+     see --coord-snap-duration in the script. Plain cursor-following stays
+     instant: the duration defaults to 0 so it never lags the pointer. */
+  .coord-cursor__line,
+  .coord-cursor__corner {
+    transition: transform var(--coord-snap-duration, 0ms) var(--ease-out-strong);
+    will-change: transform;
+  }
+
+  .coord-cursor__line {
+    position: absolute;
+    opacity: 0.25;
+  }
+
+  /* Dashed via a repeating gradient rather than border-style: dashed, which
+     renders as illegible flecks at a 1px hairline width. Bounded to the grid
+     margin by default, same as VerticalEdges — the accent-green segments
+     past each margin (below) only render once the cursor itself has crossed
+     into that margin, via .is-outside-margin on the shared lines wrapper. */
+  .coord-cursor__line--h {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--border-hairline-width);
+    background-repeat: no-repeat;
+    background-image: repeating-linear-gradient(
+      to right,
+      rgb(var(--color-paper-rgb) / 0.4) 0 6px,
+      transparent 6px 12px
+    );
+    background-position: var(--grid-margin) top;
+    background-size: calc(100% - 2 * var(--grid-margin)) 100%;
+  }
+
+  /* Three side-by-side layers (green / paper / green) so the segments past
+     each vertical edge switch to the accent color right at the same margin
+     VerticalEdges draws its line at, while the middle segment keeps the
+     plain dashed look. Only shown while the cursor is actually out there. */
+  .coord-cursor-lines.is-outside-margin .coord-cursor__line--h {
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        var(--color-accent) 0 6px,
+        transparent 6px 12px
+      ),
+      repeating-linear-gradient(
+        to right,
+        rgb(var(--color-paper-rgb) / 0.4) 0 6px,
+        transparent 6px 12px
+      ),
+      repeating-linear-gradient(
+        to right,
+        var(--color-accent) 0 6px,
+        transparent 6px 12px
+      );
+    background-position:
+      left top,
+      var(--grid-margin) top,
+      right top;
+    background-size:
+      var(--grid-margin) 100%,
+      calc(100% - 2 * var(--grid-margin)) 100%,
+      var(--grid-margin) 100%;
+  }
+
+  .coord-cursor__line--v {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--border-hairline-width);
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgb(var(--color-paper-rgb) / 0.4) 0 6px,
+      transparent 6px 12px
+    );
+  }
+
+  /* Same trigger as the horizontal line's green segments above — one class
+     on the shared wrapper drives both. */
+  .coord-cursor-lines.is-outside-margin .coord-cursor__line--v {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      var(--color-accent) 0 6px,
+      transparent 6px 12px
+    );
+  }
+
+  /* The second h/v line only means anything while snapped to a button's far
+     edges; otherwise it sits wherever it last was, invisibly. */
+  .coord-cursor__line--snap-only {
+    opacity: 0;
+    transition:
+      transform var(--coord-snap-duration, 0ms) var(--ease-out-strong),
+      opacity 150ms var(--ease-out-strong);
+  }
+
+  .coord-cursor-lines.is-snapped .coord-cursor__line--snap-only {
+    opacity: 0.25;
+  }
+
+  .coord-cursor__margin-probe {
+    position: absolute;
+    visibility: hidden;
+    width: var(--grid-margin);
+    height: 0;
+  }
+
+  .coord-cursor__dot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 6px;
+    background: var(--color-paper);
+    opacity: 1;
+    will-change: transform;
+    /* Transform is deliberately never transitioned: the dot is the cursor,
+       and it keeps tracking the pointer even while snapped, so any duration
+       here would show up as the pointer dragging its own tip behind it
+       through the release. Only the fade is timed. */
+    transition: opacity 150ms var(--ease-out-strong);
+  }
+
+  /* Hides the dot once the marker has snapped onto a button — it hands off
+     to the four corners below rather than sitting on top of them. */
+  .coord-cursor-marker.is-snapped .coord-cursor__dot {
+    opacity: 0;
+  }
+
+  /* Each corner is a zero-size anchor placed exactly on one corner of the
+     hovered button; the tick marks are drawn off it with ::before/::after
+     rather than sized as a box, so the anchor's own transform is the only
+     thing that needs to move. */
+  .coord-cursor__corner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    transition:
+      transform var(--coord-snap-duration, 0ms) var(--ease-out-strong),
+      opacity 150ms var(--ease-out-strong);
+  }
+
+  .coord-cursor-marker.is-snapped .coord-cursor__corner {
+    opacity: 1;
+  }
+
+  .coord-cursor__corner::before,
+  .coord-cursor__corner::after {
+    content: "";
+    position: absolute;
+    background: var(--color-paper);
+  }
+
+  /* Horizontal tick. */
+  .coord-cursor__corner::before {
+    top: 0;
+    width: 8px;
+    height: var(--border-hairline-width);
+  }
+
+  /* Vertical tick. */
+  .coord-cursor__corner::after {
+    left: 0;
+    width: var(--border-hairline-width);
+    height: 8px;
+  }
+
+  /* Each corner's ticks run along the button's own edges, hugging inward
+     from the corner point rather than crossing through it. */
+  .coord-cursor__corner--tl::before {
+    left: 0;
+  }
+  .coord-cursor__corner--tl::after {
+    top: 0;
+  }
+
+  .coord-cursor__corner--tr::before {
+    right: 0;
+  }
+  .coord-cursor__corner--tr::after {
+    top: 0;
+    left: auto;
+    right: 0;
+  }
+
+  .coord-cursor__corner--bl::before {
+    left: 0;
+    top: auto;
+    bottom: 0;
+  }
+  .coord-cursor__corner--bl::after {
+    bottom: 0;
+    top: auto;
+  }
+
+  .coord-cursor__corner--br::before {
+    right: 0;
+    top: auto;
+    bottom: 0;
+  }
+  .coord-cursor__corner--br::after {
+    right: 0;
+    left: auto;
+    bottom: 0;
+    top: auto;
+  }
+
+  .coord-cursor__label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--color-paper);
+    opacity: 1;
+    will-change: transform;
+    transition: opacity 150ms var(--ease-out-strong);
+  }
+
+  /* The readout is a position for the cursor, which the corners have already
+     replaced with the button itself — nothing left for it to say. */
+  .coord-cursor-marker.is-snapped .coord-cursor__label {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .coord-cursor__line,
+    .coord-cursor__dot,
+    .coord-cursor__corner,
+    .coord-cursor__label,
+    .coord-cursor__line--snap-only {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLDivElement>("[data-coord-cursor]");
+  const lines = root?.querySelector<HTMLDivElement>("[data-coord-lines]");
+  const marker = root?.querySelector<HTMLDivElement>("[data-coord-marker]");
+  const lineH = root?.querySelector<HTMLDivElement>("[data-coord-line-h]");
+  const lineV = root?.querySelector<HTMLDivElement>("[data-coord-line-v]");
+  const lineH2 = root?.querySelector<HTMLDivElement>("[data-coord-line-h2]");
+  const lineV2 = root?.querySelector<HTMLDivElement>("[data-coord-line-v2]");
+  const dot = root?.querySelector<HTMLDivElement>("[data-coord-dot]");
+  const cornerTL = root?.querySelector<HTMLDivElement>(
+    "[data-coord-corner-tl]",
+  );
+  const cornerTR = root?.querySelector<HTMLDivElement>(
+    "[data-coord-corner-tr]",
+  );
+  const cornerBL = root?.querySelector<HTMLDivElement>(
+    "[data-coord-corner-bl]",
+  );
+  const cornerBR = root?.querySelector<HTMLDivElement>(
+    "[data-coord-corner-br]",
+  );
+  const label = root?.querySelector<HTMLDivElement>("[data-coord-label]");
+  const marginProbe = root?.querySelector<HTMLDivElement>(
+    "[data-coord-margin-probe]",
+  );
+
+  if (
+    root &&
+    lines &&
+    marker &&
+    lineH &&
+    lineV &&
+    lineH2 &&
+    lineV2 &&
+    dot &&
+    cornerTL &&
+    cornerTR &&
+    cornerBL &&
+    cornerBR &&
+    label &&
+    marginProbe
+  ) {
+    // Closely bottom-right of the dot, not the wider offset the featured
+    // grid's hover label uses — this is a readout, not a caption.
+    const OFFSET = 8;
+    // How long the crosshair takes to glide onto a button's edges, and how
+    // long the release back off takes. The exit is shorter and simpler than
+    // the entry, as exits should be: the pointer has already left, so the
+    // crosshair's job is to get back under it, not to perform.
+    const SNAP_IN_MS = 200;
+    const SNAP_OUT_MS = 140;
+    // What the crosshair locks onto. Button.astro sets `.button` on every
+    // button it renders; a hand-rolled one — the service name plates, say —
+    // adds `data-coord-snap` instead of borrowing that class, whose styles
+    // are scoped to Button.astro and would not follow it here anyway.
+    const SNAP_SELECTOR = ".button, [data-coord-snap]";
+    // Kept clear of the viewport's right edge before flipping the label to
+    // the cursor's left instead of letting it run off-screen — same margin
+    // Hero's own hover label uses for the same reason.
+    const EDGE_PADDING = 16;
+
+    // The one region carved out of the effect: the grid has its own
+    // hover-label treatment, so the cursor stays native over its tiles. Its
+    // side margins are not part of it and stay active, as does everything
+    // above and below it.
+    const gridSelector = root.dataset.gridSelector;
+    const gridEl = gridSelector
+      ? document.querySelector<HTMLElement>(gridSelector)
+      : null;
+
+    // --grid-margin is a min()/vw expression, so it's read back from a
+    // probe element's rendered width rather than parsed as text; it only
+    // changes with viewport width, so it's cached and refreshed on resize.
+    let gridMargin = 0;
+    function measureMargin() {
+      gridMargin = marginProbe!.getBoundingClientRect().width;
+    }
+    measureMargin();
+    window.addEventListener("resize", measureMargin, { passive: true });
+
+    let x = 0;
+    let y = 0;
+    let hasPointer = false;
+    let frame = 0;
+    // Tracked across frames to detect the moment snapping turns on or off.
+    let wasSnapped = false;
+    let previousTarget: HTMLElement | null = null;
+    // Timestamp the release began, or 0 when not releasing. The crosshair
+    // can't just be handed back to the pointer on the frame it leaves a
+    // button: the pointer is still moving, so an exit that only set a
+    // duration once would be overwritten by the next frame's instant follow
+    // and never actually play. Instead the duration decays from SNAP_OUT_MS
+    // to 0 across this window while the lines keep retargeting the live
+    // cursor — they visibly chase it down and land on it exactly, leaving
+    // nothing to jump when instant following resumes.
+    let exitStart = 0;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    function outside(value: number) {
+      return value < gridMargin || value > window.innerWidth - gridMargin;
+    }
+
+    const corners = [cornerTL, cornerTR, cornerBL, cornerBR];
+
+    function setCornerTransforms(rect: DOMRect) {
+      cornerTL!.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+      cornerTR!.style.transform = `translate3d(${rect.right}px, ${rect.top}px, 0)`;
+      cornerBL!.style.transform = `translate3d(${rect.left}px, ${rect.bottom}px, 0)`;
+      cornerBR!.style.transform = `translate3d(${rect.right}px, ${rect.bottom}px, 0)`;
+    }
+
+    function render() {
+      frame = 0;
+
+      const hovered = document.elementFromPoint(x, y);
+      const button = hovered?.closest<HTMLElement>(SNAP_SELECTOR) ?? null;
+
+      // What is actually under the pointer, rather than whether the pointer
+      // falls inside the grid's rectangle. The two differ wherever something
+      // is drawn over the grid, and the navbar is exactly that: it is sticky,
+      // so the moment the page scrolls the grid passes behind it, and a
+      // rectangle test handed the bar back to the native cursor for the whole
+      // of that travel. Everything painted above the grid hit-tests as itself.
+      const insideGrid = gridEl !== null && hovered !== null && gridEl.contains(hovered);
+
+      const active = hasPointer && !insideGrid;
+
+      lines!.classList.toggle("is-active", active);
+      marker!.classList.toggle("is-active", active);
+      document.body.classList.toggle("coord-cursor-active", active);
+      if (!active) {
+        wasSnapped = false;
+        previousTarget = null;
+        exitStart = 0;
+        return;
+      }
+
+      const snapped = button !== null;
+      lines!.classList.toggle(
+        "is-hidden",
+        button?.dataset.coordLines === "hidden",
+      );
+
+      // Transforms are instant by default, so plain cursor-following never
+      // lags the pointer. A duration is dialled in only for the snap on and
+      // for the release window after snapping off; CSS transitions retarget
+      // from wherever they currently are, so either can be interrupted
+      // mid-flight — re-entering a button during a release glides on from
+      // the half-released position rather than restarting.
+      let duration = 0;
+      const targetChanged = button !== previousTarget;
+      if (snapped && targetChanged) {
+        exitStart = 0;
+        duration = SNAP_IN_MS;
+      } else if (snapped !== wasSnapped) {
+        exitStart = snapped ? 0 : performance.now();
+        duration = snapped ? SNAP_IN_MS : SNAP_OUT_MS;
+      } else if (exitStart) {
+        const remaining = 1 - (performance.now() - exitStart) / SNAP_OUT_MS;
+        if (remaining <= 0) exitStart = 0;
+        else duration = SNAP_OUT_MS * remaining;
+      }
+      if (reduced.matches) {
+        duration = 0;
+        exitStart = 0;
+      }
+      root!.style.setProperty("--coord-snap-duration", `${duration}ms`);
+
+      lines!.classList.toggle("is-snapped", snapped);
+      marker!.classList.toggle("is-snapped", snapped);
+
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        const enteringSnap = !wasSnapped;
+
+        if (enteringSnap) {
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          root!.style.setProperty("--coord-snap-duration", "0ms");
+          for (const corner of corners) {
+            corner!.style.transform = `translate3d(${centerX}px, ${centerY}px, 0)`;
+          }
+          marker!.classList.add("is-snapped");
+          marker!.getBoundingClientRect();
+          root!.style.setProperty("--coord-snap-duration", `${duration}ms`);
+        }
+
+        lineH!.style.transform = `translateY(${rect.top}px)`;
+        lineH2!.style.transform = `translateY(${rect.bottom}px)`;
+        lineV!.style.transform = `translateX(${rect.left}px)`;
+        lineV2!.style.transform = `translateX(${rect.right}px)`;
+        setCornerTransforms(rect);
+
+        lines!.classList.toggle(
+          "is-outside-margin",
+          outside(rect.left) || outside(rect.right),
+        );
+      } else {
+        lineH!.style.transform = `translateY(${y}px)`;
+        lineV!.style.transform = `translateX(${x}px)`;
+
+        lines!.classList.toggle("is-outside-margin", outside(x));
+      }
+
+      // Kept under the pointer even while snapped, where it's invisible
+      // behind the corners: the dot stands in for the cursor, so it has to
+      // already be in the right place the moment the release fades it back
+      // in — not glide in from wherever the pointer crossed onto the button.
+      dot!.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+
+      // The digit count (and so the label's width) changes with every move,
+      // so the overflow check is redone each frame rather than cached.
+      label!.textContent = `${Math.round(x)}, ${Math.round(y)}`;
+      const labelWidth = label!.offsetWidth;
+      const overflowsRight =
+        x + OFFSET + labelWidth > window.innerWidth - EDGE_PADDING;
+      const labelX = overflowsRight ? x - OFFSET - labelWidth : x + OFFSET;
+      label!.style.transform = `translate3d(${labelX}px, ${y + OFFSET}px, 0)`;
+
+      wasSnapped = snapped;
+      previousTarget = button;
+
+      // The release runs itself down: the pointer has usually stopped moving
+      // by the time it finishes, so it can't be driven by pointermove alone.
+      if (exitStart) schedule();
+    }
+
+    function schedule() {
+      if (!frame) frame = requestAnimationFrame(render);
+    }
+
+    function onPointerMove(event: PointerEvent) {
+      x = event.clientX;
+      y = event.clientY;
+      hasPointer = true;
+      schedule();
+    }
+
+    function onPointerLeave() {
+      hasPointer = false;
+      schedule();
+    }
+
+    document.addEventListener("pointermove", onPointerMove, {
+      passive: true,
+    });
+    // The pointer might not move for the boundary to cross it — scrolling
+    // the grid out from under a still cursor should activate the effect too.
+    document.addEventListener("scroll", schedule, { passive: true });
+    document.documentElement.addEventListener("mouseleave", onPointerLeave);
+  }
+</script>

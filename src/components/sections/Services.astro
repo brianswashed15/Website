@@ -1,0 +1,948 @@
+---
+/**
+ * Figma node 221:171. The muted heading sits at the right edge, as it does over
+ * the selected work and client sections. Beneath it the section splits: a
+ * stack of hairline-ruled name plates across the first three columns, and one
+ * large cover filling the remaining nine.
+ *
+ * The list is a set of buttons rather than static rows, because the panel is
+ * the second half of each name — reading "VFX/3D" and seeing what that looks
+ * like is one act. Pointing at a plate, tabbing to it, or tapping it brings its
+ * cover up, and scrolling past the stack walks down it a service at a time; the
+ * covers are stacked and crossfaded, so the panel never collapses to nothing
+ * between two services.
+ *
+ * The panel is `aria-hidden`: a cover still is a showreel frame carrying no
+ * information the service's own name does not already give, and a swap that
+ * announced itself would interrupt a reader every time they moved the pointer.
+ * The plates are the section's content and are all reachable and labelled.
+ */
+import type { ServicesSection } from "../../lib/sanity";
+import SectionHeading from "../ui/SectionHeading.astro";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+
+interface Props {
+  content: ServicesSection;
+}
+
+const { content } = Astro.props;
+const services = content.services;
+
+/** The panel is nine of twelve columns — 980px at the 1440 design width. */
+const COVER_WIDTHS = [980, 1960];
+const coverSrc = (url: string, width: number) =>
+  `${url}?w=${width}&h=${Math.round((width * 594) / 977)}&fit=crop&auto=format`;
+---
+
+<section
+  class:list={["services", { "services--walked": services.length > 0 }]}
+  aria-labelledby="services-heading"
+  style={`--service-count: ${services.length}`}
+>
+  {/* The section is taller than what it shows, and this holds still inside
+      that extra height while the page scrolls through it — so the stack is
+      walked before the page moves on, without anything touching the wheel.
+      Scrolling on always carries the reader out; nothing is trapped. */}
+  <div class="services__pin">
+    <SectionHeading id="services-heading">{content.heading}</SectionHeading>
+
+    {
+    services.length > 0 ? (
+      <div class="services__body" data-services>
+        <ul class="plates" data-reveal>
+          {services.map((service, index) => (
+            <li class="plate" style={`--i: ${index}`}>
+              {/* The first service is active before any script runs, so a
+                  reader without JavaScript still gets a list and a cover
+                  rather than an empty panel. */}
+              <button
+                type="button"
+                class="plate__button"
+                data-service-plate
+                data-coord-snap
+                aria-pressed={index === 0 ? "true" : "false"}
+              >
+                {service.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <div class="panel" aria-hidden="true">
+          {services.map((service, index) => (
+            <div
+              class:list={["cover", { "is-active": index === 0 }]}
+              data-service-cover
+            >
+              {service.coverUrl && (
+                <img
+                  src={coverSrc(service.coverUrl, 980)}
+                  srcset={COVER_WIDTHS.map(
+                    (width) => `${coverSrc(service.coverUrl!, width)} ${width}w`,
+                  ).join(", ")}
+                  sizes="(min-width: 900px) 68vw, 100vw"
+                  width="980"
+                  height="594"
+                  alt=""
+                  loading={index === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                />
+              )}
+              {service.coverVideoUrl && (
+                <video
+                  class="cover__video"
+                  src={service.coverVideoUrl}
+                  preload="none"
+                  muted
+                  loop
+                  playsinline
+                  tabindex="-1"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : (
+      <p class="services__empty">
+        Services managed in Sanity will appear here.
+      </p>
+    )
+    }
+  </div>
+
+  {/* The lens itself. `feDisplacementMap` needs its field as an image, and
+      `feImage` is the only primitive that can bring one into a filter, so the
+      field is drawn to a canvas on the client and handed over as a data URL —
+      see buildLensMap in the script. Nothing is painted here; the svg is a
+      definition and takes no space. */}
+  <svg class="lens" aria-hidden="true" focusable="false" width="0" height="0">
+    <filter
+      id="services-fisheye"
+      x="-5%"
+      y="-5%"
+      width="110%"
+      height="110%"
+      color-interpolation-filters="sRGB"
+    >
+      <feImage preserveAspectRatio="none" result="lens-map" data-lens-map />
+      <feDisplacementMap
+        in="SourceGraphic"
+        in2="lens-map"
+        xChannelSelector="R"
+        yChannelSelector="G"
+        scale="0"
+        data-lens-scale
+      />
+    </filter>
+  </svg>
+
+  <VerticalEdges />
+</section>
+
+<script>
+  import "../../scripts/reveal";
+
+  /**
+   * Which plate is active, and the cover that belongs to it. Hover and focus
+   * both set it, so pointer and keyboard arrive at the same place; click is
+   * here for touch, where there is no hover to arrive with. Scroll sets it too,
+   * one service at a time — see the reading line below.
+   *
+   * Only the active cover's video runs, and only while the section is on
+   * screen — four looping videos decoding behind an opaque one is the whole
+   * cost of this panel and none of its point.
+   */
+  const section = document.querySelector<HTMLElement>("[data-services]");
+
+  if (section) {
+    const plates = Array.from(
+      section.querySelectorAll<HTMLButtonElement>("[data-service-plate]"),
+    );
+    const covers = Array.from(
+      section.querySelectorAll<HTMLElement>("[data-service-cover]"),
+    );
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    let active = 0;
+    let onScreen = false;
+
+    const video = (index: number) =>
+      covers[index]?.querySelector<HTMLVideoElement>("video");
+
+    const play = (index: number) => {
+      const media = video(index);
+      if (!media || reduced.matches || document.hidden || !onScreen) return;
+      if (media.preload !== "auto") {
+        media.preload = "auto";
+        if (media.readyState === HTMLMediaElement.HAVE_NOTHING) media.load();
+      }
+      // Autoplay can still be refused even when muted; the cover image stays.
+      media.play().catch(() => {});
+    };
+
+    const pauseAll = () => {
+      for (const cover of covers) {
+        cover.querySelector<HTMLVideoElement>("video")?.pause();
+      }
+    };
+
+    const activate = (index: number) => {
+      if (index === active) return;
+
+      video(active)?.pause();
+      covers[active]?.classList.remove("is-active");
+      plates[active]?.setAttribute("aria-pressed", "false");
+
+      active = index;
+
+      covers[index]?.classList.add("is-active");
+      plates[index]?.setAttribute("aria-pressed", "true");
+      play(index);
+    };
+
+    /**
+     * Scrolling walks the list. The lit plate is the one crossing a reading
+     * line halfway down the viewport, so the panel follows the reader down the
+     * stack and back up it without them having to point at anything — which is
+     * also the only way the section reads on a trackpad or a phone, where the
+     * pointer never arrives.
+     *
+     * A step is taken one service at a time. A fast wheel or a fling can move
+     * the line across the whole stack between two frames, and landing on the
+     * last service from the first would skip the two the reader scrolled past;
+     * so the target is aimed at and the active index walks toward it, holding
+     * each cover long enough to be seen. Under reduced motion it goes straight
+     * there, since the intermediate covers are motion and nothing else.
+     */
+    const READING_LINE = 0.5;
+    const STEP_DWELL = 140;
+
+    let target = active;
+    let stepping = 0;
+    /**
+     * A wheel scroll drags plates under a stationary cursor, and each boundary
+     * it crosses fires `pointerenter` — the list would then be driven from two
+     * places at once and fight itself. Hover only counts when the pointer has
+     * genuinely moved since the last scroll.
+     */
+    let scrolledAt = 0;
+    let pointerMovedAt = 0;
+    let pointerX = -1;
+    let pointerY = -1;
+
+    const step = () => {
+      stepping = 0;
+      if (target === active) return;
+      activate(active + Math.sign(target - active));
+      if (target !== active) stepping = window.setTimeout(step, STEP_DWELL);
+    };
+
+    const aim = (index: number) => {
+      target = index;
+      if (reduced.matches) {
+        activate(index);
+        return;
+      }
+      if (!stepping) step();
+    };
+
+    /**
+     * While the section is pinned the plates do not move, so there is no
+     * reading line for them to cross — progress through the runway under the
+     * pin is what walks the stack instead. Returns null when there is no pin
+     * to measure (a phone, or a viewport tall enough to swallow the runway),
+     * which hands the job back to the reading line below.
+     */
+    const sectionEl = section.closest<HTMLElement>(".services");
+    const pinEl = section.closest<HTMLElement>(".services__pin");
+
+    const indexWhilePinned = () => {
+      if (!sectionEl || !pinEl) return null;
+      const travel = sectionEl.offsetHeight - pinEl.offsetHeight;
+      if (travel <= 0) return null;
+      const progress = -sectionEl.getBoundingClientRect().top / travel;
+      const index = Math.floor(progress * plates.length);
+      return Math.min(Math.max(index, 0), plates.length - 1);
+    };
+
+    /**
+     * The pin, arrived at rather than hit.
+     *
+     * `position: sticky` is a step change in velocity: the composition travels
+     * up the viewport at the speed of the page and then, on one frame, is
+     * doing nothing. Nothing about that is wrong, and on a page whose whole
+     * scroll is weighted it is the one hard edge left in it — the reader feels
+     * the section catch.
+     *
+     * So the lock is eased into. The pin is held a little below its resting
+     * line as it comes up, and closes the remaining distance over the first
+     * stretch of the runway, slowing as it goes:
+     *
+     *   APPROACH       the lag, as a fraction of the viewport: how far below
+     *                  its line the pin still is at the moment it reaches it
+     *   SETTLE_RATIO   the length of the whole ease in units of that lag
+     *
+     * The curve is a cubic chosen for its ends, not its shape: the ease begins
+     * at exactly the speed of the page — so there is no frame where the
+     * composition changes pace — and reaches the line with zero velocity,
+     * which is the whole point. Three is not a taste: it is the only ratio at
+     * which both of those hold, so the two constants move together.
+     *
+     * The offset is always downward, into the section's own runway. An ease
+     * that decelerated by running *ahead* of the page would lift the heading
+     * up over the rule above it on the way in, which is a worse artefact than
+     * the one being fixed.
+     */
+    const APPROACH = 0.12;
+    const SETTLE_RATIO = 3;
+
+    const settle = () => {
+      if (!sectionEl || !pinEl) return;
+
+      // Static below the breakpoint: there is no lock to arrive at, and the
+      // stack is walked by the reading line instead.
+      const pinTop = parseFloat(getComputedStyle(pinEl).top);
+      if (reduced.matches || !Number.isFinite(pinTop)) {
+        pinEl.style.removeProperty("--pin-settle");
+        return;
+      }
+
+      const approach = window.innerHeight * APPROACH;
+      const distance = approach * SETTLE_RATIO;
+      // 0 the instant the section's top edge reaches the lock line; negative
+      // above it, positive once the pin is holding.
+      const progress = pinTop - sectionEl.getBoundingClientRect().top;
+
+      if (progress <= -approach || progress >= distance - approach) {
+        pinEl.style.removeProperty("--pin-settle");
+        return;
+      }
+
+      const t = (progress + approach) / distance;
+      const eased = approach * (1 - t) ** 3;
+      // Before the lock the pin is still travelling with the page, so the
+      // offset is measured from where the page has it; after, from the line.
+      pinEl.style.setProperty(
+        "--pin-settle",
+        `${eased + Math.min(progress, 0)}px`,
+      );
+    };
+
+    /** The plate the reading line is inside, clamped to the ends of the stack. */
+    const indexAtReadingLine = () => {
+      const line = window.innerHeight * READING_LINE;
+      if (line <= plates[0].getBoundingClientRect().top) return 0;
+      const last = plates.length - 1;
+      if (line >= plates[last].getBoundingClientRect().bottom) return last;
+      for (let index = 0; index <= last; index += 1) {
+        const rect = plates[index].getBoundingClientRect();
+        if (line >= rect.top && line < rect.bottom) return index;
+      }
+      // Mid-hairline, between two plates: keep whatever is already lit.
+      return active;
+    };
+
+    /**
+     * The cover drifts against the page while the section is scrolled through.
+     * It lags the panel rather than leading it — the same way something seen
+     * through a window behaves as you walk past — so the drift reads as depth
+     * behind the frame instead of the picture sliding around inside it.
+     *
+     * The travel is a fraction of the panel's height and the covers are scaled
+     * up by the same fraction, so the panel is never uncovered at either end.
+     *
+     * Pinned, the panel does not move at all, so there is nothing to measure it
+     * against: progress through the runway drives the drift, the same measure
+     * that walks the stack. Unpinned — a phone, or a viewport tall enough to
+     * swallow the runway — it is the panel's own passage through the viewport.
+     */
+    const panel = section.querySelector<HTMLElement>(".panel");
+
+    /**
+     * `DRIFT` is the vertical travel as a fraction of the panel's height, taken
+     * from either end of the section, so the cover moves through 28% of its own
+     * height across the scroll. The overscan that pays for it — the cover has
+     * to stay larger than its frame at both extremes of the drift, or the panel
+     * shows through behind it — is the standing `scale` in the stylesheet.
+     */
+    const DRIFT = 0.14;
+
+    /**
+     * ─────────────────────────────────────────────────────────────────────
+     * The lens. A real pincushion — the reverse of a fisheye: the middle of
+     * the frame is pushed back and the picture is stretched out toward the
+     * rim, the way a long lens renders — rather than anything faked with a
+     * transform.
+     *
+     * `feDisplacementMap` moves each output pixel to read from somewhere else
+     * in the source, and the somewhere-else is given to it as an image: red is
+     * the horizontal offset, green the vertical, 128 meaning "stay put". So the
+     * field is drawn here, once, on a canvas, and handed to the `feImage` in
+     * the markup above as a data URL.
+     *
+     * `LENS` is the strength, and the one number worth touching: how far out a
+     * pixel halfway to the rim reads, as a fraction of its own radius. 0 is a
+     * flat picture; 0.15 is a lens you notice without reading it as an effect;
+     * past about 0.5 the map runs out of range and the field clips (raise
+     * `LENS_ENCODE`'s divisor with it if you ever want to go there).
+     *
+     * `LENS_EXTENT` is the filter region in element widths — it must stay in
+     * step with the region declared on the filter in the markup above, since
+     * the map is stretched across exactly that, and the rim of the lens has to
+     * land on the rim of the panel.
+     *
+     * `LENS_ASPECT` is the panel's fixed 977 × 594 — one `scale` serves both
+     * axes, so the vertical offsets carry the ratio themselves.
+     * `LENS_ENCODE` is only about precision: the field uses a small part of an
+     * 8-bit channel, so it is written large and the filter's `scale` is divided
+     * by the same number to put it back.
+     * ─────────────────────────────────────────────────────────────────────
+     */
+    const LENS = 0.15;
+    const LENS_EXTENT = 1.1;
+    const LENS_ASPECT = 594 / 977;
+    const LENS_ENCODE = 4;
+    const LENS_MAP_SIZE = 256;
+
+    const buildLensMap = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = LENS_MAP_SIZE;
+      canvas.height = LENS_MAP_SIZE;
+      const context = canvas.getContext("2d");
+      if (!context) return null;
+
+      const field = context.createImageData(LENS_MAP_SIZE, LENS_MAP_SIZE);
+      const byte = (value: number) =>
+        Math.max(0, Math.min(255, Math.round(255 * value)));
+
+      for (let y = 0; y < LENS_MAP_SIZE; y += 1) {
+        const v = (((y + 0.5) / LENS_MAP_SIZE) * 2 - 1) * LENS_EXTENT;
+        for (let x = 0; x < LENS_MAP_SIZE; x += 1) {
+          const u = (((x + 0.5) / LENS_MAP_SIZE) * 2 - 1) * LENS_EXTENT;
+
+          // Held at the rim rather than carried past it: outside the frame
+          // there is nothing left to stretch, and a field that kept growing
+          // there would drag the oversized cover's edges into view.
+          const radius = Math.min(Math.hypot(u, v), 1);
+
+          // How far out this pixel reads, as a fraction of its own radius.
+          // Zero at the centre and zero again at the rim — so the frame stays
+          // filled — and strongest in between, which is the pincushion. Negate
+          // it for the other lens: the same curve inverted is a fisheye.
+          const push = (LENS * (1 - radius * radius)) / (1 + LENS);
+
+          const i = (y * LENS_MAP_SIZE + x) * 4;
+          field.data[i] = byte(0.5 + LENS_ENCODE * u * push);
+          field.data[i + 1] = byte(0.5 + LENS_ENCODE * LENS_ASPECT * v * push);
+          field.data[i + 2] = 0;
+          field.data[i + 3] = 255;
+        }
+      }
+
+      context.putImageData(field, 0, 0);
+      return canvas.toDataURL("image/png");
+    };
+
+    const lensMap = document.querySelector<SVGElement>("[data-lens-map]");
+    const lensScale = document.querySelector<SVGElement>("[data-lens-scale]");
+
+    // The filter is switched on from here rather than from the stylesheet, so a
+    // page whose script never ran shows the covers undistorted instead of
+    // displaced by a map that was never drawn.
+    if (panel && lensMap && lensScale) {
+      const href = buildLensMap();
+      if (href) {
+        lensMap.setAttribute("href", href);
+        panel.classList.add("is-lensed");
+      }
+    }
+
+    const parallax = () => {
+      if (!panel) return;
+
+      const rect = panel.getBoundingClientRect();
+
+      // The offsets in the map are fractions of the panel's half-width, so the
+      // filter's own scale is what turns them into pixels — and it has to be
+      // re-stated whenever the panel is a different size.
+      lensScale?.setAttribute(
+        "scale",
+        String(rect.width / 2 / LENS_ENCODE),
+      );
+
+      if (reduced.matches) {
+        panel.style.removeProperty("--cover-shift");
+        return;
+      }
+
+      const travel = sectionEl && pinEl
+        ? sectionEl.offsetHeight - pinEl.offsetHeight
+        : 0;
+      const progress = travel > 0
+        ? -sectionEl!.getBoundingClientRect().top / travel
+        : (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
+
+      // -1 entering the section, 0 at its middle, 1 leaving it.
+      const signed = Math.min(Math.max(progress, 0), 1) * 2 - 1;
+
+      panel.style.setProperty("--cover-shift", `${signed * DRIFT * rect.height}px`);
+    };
+
+    let queued = false;
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        scrolledAt = performance.now();
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          queued = false;
+          settle();
+          parallax();
+          aim(indexWhilePinned() ?? indexAtReadingLine());
+        });
+      },
+      { passive: true },
+    );
+
+    // The drift is measured off the panel's height and the settle off the
+    // viewport's, which the breakpoint and the viewport both change.
+    window.addEventListener(
+      "resize",
+      () => {
+        settle();
+        parallax();
+      },
+      { passive: true },
+    );
+
+    document.addEventListener(
+      "pointermove",
+      (event) => {
+        if (event.clientX === pointerX && event.clientY === pointerY) return;
+        pointerX = event.clientX;
+        pointerY = event.clientY;
+        pointerMovedAt = performance.now();
+      },
+      { passive: true },
+    );
+
+    /**
+     * Pointing at, tabbing to, or tapping a plate is a choice of that service,
+     * so it goes there directly and abandons any walk in progress. Only scroll
+     * steps, because only scroll passes over the services on its way.
+     */
+    const pick = (index: number) => {
+      window.clearTimeout(stepping);
+      stepping = 0;
+      target = index;
+      activate(index);
+    };
+
+    plates.forEach((plate, index) => {
+      plate.addEventListener("pointerenter", () => {
+        if (pointerMovedAt < scrolledAt) return;
+        pick(index);
+      });
+      plate.addEventListener("focus", () => pick(index));
+      plate.addEventListener("click", () => pick(index));
+    });
+
+    // A reload partway down the page should not start the panel on a service
+    // the reader has already scrolled past the plate for.
+    target = indexAtReadingLine();
+    activate(target);
+    settle();
+    parallax();
+
+    for (const cover of covers) {
+      cover
+        .querySelector<HTMLVideoElement>("video")
+        ?.addEventListener("playing", (event) => {
+          (event.currentTarget as HTMLVideoElement).classList.add("is-playing");
+        }, { once: true });
+    }
+
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            onScreen = entry.isIntersecting;
+            onScreen ? play(active) : pauseAll();
+          }
+        },
+        { threshold: 0.25 },
+      ).observe(section);
+    } else {
+      onScreen = true;
+      play(active);
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      document.hidden ? pauseAll() : play(active);
+    });
+
+    reduced.addEventListener("change", () => {
+      reduced.matches ? pauseAll() : play(active);
+      settle();
+      parallax();
+    });
+  }
+</script>
+
+<style>
+  .services {
+    /* One column of the 12-column grid, resolved against this section's
+       content box — which is exactly the grid width. */
+    --column-width: calc((100% - 11 * var(--grid-gutter)) / 12);
+
+    /* How much scroll each service holds the panel for while pinned, and the
+       ceiling on the total. The reader is scrolling and apparently going
+       nowhere for the whole runway, so its length is the difference between a
+       section that paces itself and one that reads as a trap — roughly two
+       and a half viewports is as far as that goodwill goes.
+
+       The cap is what keeps that true as the list grows: the count is an
+       editor's decision, and at six services a comfortable per-service dwell
+       already runs past the ceiling, so beyond that point services share the
+       runway rather than each adding to it. */
+    --service-dwell: 40vh;
+    --service-runway-max: 250vh;
+
+    position: relative;
+    /* Horizontal only. The heading space belongs to the pin rather than the
+       section, so the pin's top edge and the section's top edge are the same
+       line: the pin locks the instant that line reaches the navbar, and none
+       of the section scrolls past above it first.
+
+       No bottom padding: the panel is the tallest thing in the section, so its
+       bottom edge is the section's, and the rule the page draws after it lands
+       on that edge rather than floating below it. See the panel's own missing
+       bottom border. */
+    padding: 0 var(--grid-margin);
+  }
+
+  .services__pin {
+    padding-top: var(--section-heading-space);
+  }
+
+  /* A viewport to show the pinned composition in, plus a runway for the walk.
+     The extra height is never seen — the pin covers the viewport for all of it
+     — it exists only as scroll for the stack to be walked with. Both this and
+     the pin hang off there being services to walk: with an empty dataset there
+     is no stack, so reserving scroll for one would be a screenful of nothing. */
+  .services--walked {
+    min-height: calc(
+      100vh +
+        min(
+          var(--service-count, 1) * var(--service-dwell),
+          var(--service-runway-max)
+        )
+    );
+  }
+
+  /* Held under the navbar rather than at the viewport top, so the heading is
+     not filed behind the bar for the length of the pin. The pin carries the
+     section's top padding, so the lock lands exactly on the section's own top
+     edge — and the runway the script measures below (section height minus pin
+     height) is then the sticky travel itself rather than that plus a stray
+     band of padding. */
+  .services--walked .services__pin {
+    position: sticky;
+    top: var(--navbar-height);
+    /* Sticky settles the pin onto `top` in one frame; `--pin-settle` is the
+       remaining distance the script hands back so it can be closed gradually
+       instead. Applied after sticky resolves, so it moves the locked pin
+       without moving the line it locks to. Zero at rest, and absent entirely
+       whenever the script is not driving it — no script, no pin, or reduced
+       motion — which leaves the plain sticky behaviour. */
+    transform: translate3d(0, var(--pin-settle, 0px), 0);
+  }
+
+  /* The plates extend through the gutter after the third column so their right
+     edge meets the panel at the fourth-column line. The panel keeps its
+     existing position and width through the equivalent wider first track. */
+  .services__body {
+    display: grid;
+    grid-template-columns:
+      calc(3 * var(--column-width) + 3 * var(--grid-gutter))
+      minmax(0, 1fr);
+    gap: 0;
+    align-items: start;
+  }
+
+  .plates {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Each plate is ruled along its top and right. The left edge is the page's
+     own vertical hairline, which already lands there.
+
+     The height is also the pacing of the scroll walk, which is why it is
+     taller than the plate needs to be for its own type. The lit service is
+     whichever plate the reading line is inside, so a plate's height *is* the
+     scroll distance that service holds for — at the original 70px the whole
+     stack went by in about a quarter of a viewport, and Lenis' added inertia
+     carries a single wheel gesture straight through all of them. Every other
+     way of slowing the walk breaks what makes it legible: scaling the mapping
+     off the plates leaves the lit plate somewhere other than the reading
+     line, and spacing the plates apart cuts the ruled stack into loose rows. */
+  .plate__button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: clamp(76px, 7vw, 100px);
+    margin: 0;
+    padding: 8px 16px;
+    border: 0;
+    border-top: var(--border-hairline-width) solid var(--border-hairline);
+    border-right: var(--border-hairline-width) solid var(--border-hairline);
+    border-radius: 0;
+    background-color: var(--button-white-surface);
+    font-family: var(--font-heading);
+    font-size: var(--text-h2);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-heading);
+    text-align: start;
+    color: var(--button-white-text);
+    cursor: pointer;
+    transition: background-color var(--transition-hover);
+  }
+
+  /* A restrained paper tint marks both hover and the active service without
+     competing with the cover panel. `aria-pressed` is what the script sets,
+     and it is what holds the lit
+     state after the pointer has moved off the list — the plate whose cover is
+     up stays lit, because the panel beside it is still showing that service. */
+  .plate__button:hover,
+  .plate__button:focus-visible,
+  .plate__button[aria-pressed="true"] {
+    background-color: color-mix(
+      in srgb,
+      var(--color-paper) 5%,
+      var(--surface-page)
+    );
+  }
+
+  /* The stack needs a closing edge. Figma leaves the last plate open, but it
+     could: every plate there carries a fill, so the block ended on its own.
+     These are transparent until pointed at, so without this rule the list
+     just stops in mid-air. It sits on the last plate rather than on the list
+     so that it wipes in with that plate instead of being drawn under a stack
+     that has not arrived yet. */
+  .plate:last-child .plate__button {
+    border-bottom: var(--border-hairline-width) solid var(--border-hairline);
+  }
+
+  .plate__button:focus-visible {
+    outline: var(--border-hairline-width) solid var(--color-accent);
+    outline-offset: -2px;
+  }
+
+  /* 977 × 594 in Figma. The ratio is the design's, not a standard one.
+
+     Framed on three sides. The fourth is the section rule the page draws
+     underneath, which is the same stroke at the same weight and now lands
+     exactly on this edge — drawing both would put two hairlines together and
+     read as one thicker line under the panel than either side of it. */
+  .panel {
+    position: relative;
+    aspect-ratio: 977 / 594;
+    overflow: hidden;
+    background-color: rgb(var(--color-paper-rgb) / 0.05);
+    border: var(--border-hairline-width) solid var(--border-hairline);
+    border-bottom: 0;
+  }
+
+  /* Every cover is stacked in the same box and crossfaded, so the panel is
+     never empty mid-swap and no layout is recomputed when the pointer runs
+     down the list. */
+  .cover {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity var(--transition-hover);
+  }
+
+  .cover.is-active {
+    opacity: 1;
+  }
+
+  .cover img,
+  .cover__video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The lens goes on the cover rather than on either medium, so a still and the
+     clip that fades in over it are warped as one picture and the distortion
+     does not change under the crossfade. It cannot go on the panel: that would
+     bend the hairline frame too, and the frame is a drawn edge of the page, not
+     something seen through the glass. */
+  .panel.is-lensed .cover {
+    filter: url(#services-fisheye);
+  }
+
+  /* The drift, and the standing scale that is the overscan keeping the frame
+     filled at both ends of it. The panel's `overflow: hidden` crops what hangs
+     over.
+
+     This is on the same element the filter is on, and deliberately so: a
+     filter is applied to an element's content and the element's transform is
+     applied to the result, so moving the cover cannot change what the filter
+     was fed. The warped picture is rasterised once and then only slid around,
+     which is what keeps scrolling a composite rather than a displacement pass
+     per frame. Putting the transform on the media inside instead — which is
+     where it started — moved the filter's own input every frame and made the
+     browser redo the warp for all of them. */
+  .cover {
+    transform: translate3d(0, var(--cover-shift, 0px), 0) scale(1.16);
+    backface-visibility: hidden;
+  }
+
+  /* A definition, not a drawing. */
+  .lens {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  /* The video sits on the still and is revealed once it has frames, so a
+     service never flashes empty while its clip loads. */
+  .cover__video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity var(--transition-hover);
+  }
+
+  .cover__video.is-playing {
+    opacity: 1;
+  }
+
+  /* The plates arrive one after the next, top to bottom, the way the reader
+     will run down them. The panel does not: it is the thing they arrive at,
+     and a cover that faded in behind a moving list would read as a second
+     unrelated event.
+
+     Each plate is wiped down from its own top edge rather than slid into
+     place, so the stack builds the way it is read and no plate is ever drawn
+     outside the box it will end up in. The scale rides along under the wipe:
+     it starts near 1 rather than at 0, because a plate that grew from nothing
+     would announce itself louder than a service name deserves.
+
+     The entrance lives on the `li` and the hover surface on the button
+     inside it. Sharing one element would mean one `transition` shorthand for
+     both, and the stagger's `transition-delay` would then also delay every
+     later hover by that plate's place in the list. */
+  :global(.js) .plates[data-reveal] .plate {
+    opacity: 0;
+    /* Anchored to the page's vertical hairline, which the plate's left edge
+       sits on: scaling from the centre would pull it off that line and put it
+       back, which is the one movement the eye would actually catch. */
+    transform-origin: left center;
+    transform: scale(0.97);
+    clip-path: inset(0 0 100% 0);
+  }
+
+  :global(.js) .plates.is-revealed .plate {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 0 0 0);
+    transition:
+      opacity var(--transition-text),
+      transform var(--transition-text),
+      clip-path var(--transition-text);
+    transition-delay: calc(var(--i, 0) * var(--stagger-text));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* The settle is scroll-linked movement, so it comes off with the rest of
+       it and the pin locks the way sticky locks on its own. */
+    .services--walked .services__pin {
+      transform: none;
+    }
+
+    .cover,
+    .cover__video,
+    .plate__button {
+      transition: none;
+    }
+
+    /* The drift is motion tied to the scroll, which is exactly the kind this
+       setting is asking not to see; without it the covers no longer need the
+       overscan either, so they go back to sitting flush in the panel. The lens
+       stays: a fixed distortion is how the picture is framed, not something
+       that moves. */
+    .cover {
+      transform: none;
+    }
+
+    /* The wipe and the scale are both movement, so both come off and the
+       plates are left to fade in place. `clip-path` is dropped on each side of
+       the reveal rather than only the start, since `none` and an `inset()` do
+       not interpolate and the plate would otherwise snap open mid-fade. */
+    :global(.js) .plates[data-reveal] .plate {
+      transform: none;
+      clip-path: none;
+    }
+
+    :global(.js) .plates.is-revealed .plate {
+      clip-path: none;
+      transition: opacity 300ms var(--ease-out-strong);
+      transition-delay: 0s;
+    }
+  }
+
+  .services__empty {
+    margin: 0;
+    font-size: var(--text-b2);
+    color: var(--ink-muted);
+  }
+
+  /* A 40px name plate and a wide cover stop fitting side by side well before
+     the phone breakpoint, so the panel drops under the list and takes the full
+     width. Hover no longer picks a service on the way past, but tapping still
+     does. */
+  @media (max-width: 899px) {
+    /* No pin on a phone. Stacked, the list and the cover under it are already
+       taller than the viewport, so there is nothing a pin could hold still —
+       and a screen that refuses to move under a thumb reads as a page that
+       has frozen. The script falls back to its reading-line walk here. */
+    .services--walked {
+      min-height: 0;
+    }
+
+    .services--walked .services__pin {
+      position: static;
+      transform: none;
+    }
+
+    .services__body {
+      grid-template-columns: minmax(0, 1fr);
+      gap: clamp(16px, 2vw, 24px);
+    }
+
+    /* Nothing is beside the plates any more, so the right rule would cut the
+       list off short of the page's own hairline. */
+    .plate__button {
+      border-right: 0;
+    }
+
+    /* Full-bleed and on a phone, the lens is both the least visible — there is
+       no frame beside it to read the curve against — and the most expensive:
+       a displacement pass over the whole width, re-run on every frame of a
+       playing clip. It comes off. */
+    .panel.is-lensed .cover {
+      filter: none;
+    }
+  }
+</style>

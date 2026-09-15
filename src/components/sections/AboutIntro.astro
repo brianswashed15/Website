@@ -1,0 +1,414 @@
+---
+/**
+ * The about page's opening block: the section heading, a column of copy, and
+ * the people under it.
+ *
+ * It is built on the same twelve columns and the same `SectionHeading` as
+ * Selected Work and Services, because it is the same kind of thing — the top
+ * of a page section — and the moment it is authored separately the rhythm the
+ * heading component exists to hold starts to drift.
+ *
+ * All of it is content: the paragraphs, and the people's names, portraits and
+ * profile links, all come from `aboutPage` in Sanity. The copy that shipped
+ * before any of it was editable is still what the page says until the dataset
+ * says otherwise — it lives in `ABOUT_PAGE_FALLBACK` with every other
+ * section's, rather than in this file.
+ */
+import { getAboutPage, type AboutPageSection } from "../../lib/sanity";
+import SectionHeading from "../ui/SectionHeading.astro";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+
+interface Props {
+  content?: AboutPageSection;
+}
+
+const { content = await getAboutPage() } = Astro.props;
+
+/**
+ * The portraits are small squares, requested at twice the size they are drawn
+ * and no larger — a face at 64px does not need a 700px asset behind it, and at
+ * 128 this is already the 2x asset, so there is nothing for a `srcset` to add.
+ * The same 128 the testimonial portraits ask for, which are the same picture at
+ * the same size in the same treatment.
+ *
+ * No `crop` parameter. Sanity's image API is not Imgix and takes only
+ * `top | bottom | left | right | center | focalpoint | entropy` there; anything
+ * else fails the request outright, and a portrait that fails to load renders as
+ * its own alt text. `fit=crop` with a square `w` and `h` is what every other
+ * image on the site is built with, and it centres the crop.
+ */
+const PORTRAIT = 128;
+const portraitSrc = (url: string) =>
+  `${url}?w=${PORTRAIT}&h=${PORTRAIT}&fit=crop&auto=format`;
+
+/**
+ * Two, because that is the pair the layout is drawn around. An empty dataset
+ * still renders both as empty rings rather than collapsing the row — the same
+ * choice the picture above makes, for the same reason.
+ */
+const MEMBER_SLOTS = 2;
+const memberSlots = Array.from(
+  { length: Math.max(content.members.length, MEMBER_SLOTS) },
+  (_, index) => content.members[index] ?? null,
+);
+---
+
+<section class="about-intro" aria-labelledby="about-heading">
+  <SectionHeading id="about-heading">More about us</SectionHeading>
+
+  <div class="about-intro__body">
+    <div class="about-intro__copy" data-reveal>
+      {content.paragraphs.map((paragraph, index) => (
+        <p style={`--i: ${index}`}>{paragraph}</p>
+      ))}
+
+      {/* The people, under the words about them. A list, because that is what
+          it is — the pair sitting side by side are a set, and the markup should
+          say so even though the bullets are styled off. */}
+      <ul class="members" style={`--i: ${content.paragraphs.length}`}>
+        {memberSlots.map((member) => (
+          <li class="member">
+            {/* The frame stands whether or not there is a face in it, so an
+                unfilled entry reads as a portrait not chosen yet rather than
+                as the row collapsing. */}
+            <div class="member__portrait">
+              {member && (
+                <img
+                  src={portraitSrc(member.portraitUrl)}
+                  width={PORTRAIT}
+                  height={PORTRAIT}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                />
+              )}
+            </div>
+
+            {member && (
+              <div class="member__text">
+                <p class="member__name">{member.name}</p>
+
+                {(member.linkedinUrl || member.instagramUrl) && (
+                  <ul class="member__links">
+                    {member.linkedinUrl && (
+                      <li>
+                        <a
+                          href={member.linkedinUrl}
+                          data-coord-snap
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {/* The name is in the link text for a reader who can
+                              see it; the person it belongs to is not, so it is
+                              added here for one who cannot. */}
+                          LinkedIn<span class="visually-hidden">
+                            {` — ${member.name}`}</span>
+                        </a>
+                      </li>
+                    )}
+                    {member.instagramUrl && (
+                      <li>
+                        <a
+                          href={member.instagramUrl}
+                          data-coord-snap
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Instagram<span class="visually-hidden">
+                            {` — ${member.name}`}</span>
+                        </a>
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+
+  </div>
+
+  <VerticalEdges />
+</section>
+
+<script>
+  import "../../scripts/reveal";
+</script>
+
+<style>
+  .about-intro {
+    /* One column of the 12-column grid, resolved against this section's
+       content box — which is exactly the grid width. */
+    --column-width: calc((100% - 11 * var(--grid-gutter)) / 12);
+
+    position: relative;
+    /* A screenful at least. The block is short enough to leave air under it on
+       a tall window, and that air is the point: it is the first thing on the
+       page and it should not share the screen with what follows. */
+    min-height: 100vh;
+    min-height: 100lvh;
+    padding: var(--section-heading-space) var(--grid-margin)
+      clamp(80px, 9vw, 140px);
+  }
+
+  /* One column now, centred. The grid is kept rather than swapped for a
+     `max-width` and `margin: auto` so the block is still measured in the
+     page's own columns — six of twelve, starting at the fourth, which leaves
+     three either side and is centred by construction rather than by a number
+     that happens to look right. */
+  .about-intro__body {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--grid-gutter);
+    align-items: start;
+    /* The hairline under the heading, which every other section on the site
+       opens with — on Selected Work it is the top edge of the first project
+       band rather than a rule of its own, and this is the same line doing the
+       same job: it closes the heading and opens the content. It spans the
+       section's content box, so it runs margin to margin between the two
+       vertical hairlines exactly as that one does. */
+    border-top: var(--border-hairline-width) solid var(--border-hairline);
+    /* The project bands sit straight on their rule because a still can. Copy
+       cannot — set against a hairline it reads as the line underlining it. */
+    padding-top: clamp(32px, 3.4vw, 56px);
+  }
+
+  /* Centred on the page, but the copy inside it stays ranged left — a centred
+     measure is what is wanted, not centred text, which is harder to read and
+     is not how anything else on this site is set.
+
+     Five columns, which `grid-column` cannot place on its own: an odd span
+     does not centre on twelve, and six was wider than the copy wants. So the
+     block takes the whole grid and is held to five columns' worth by hand,
+     still measured in the page's own columns rather than in a round number
+     that happens to look right. */
+  .about-intro__copy {
+    grid-column: 1 / -1;
+    max-width: calc(5 * var(--column-width) + 4 * var(--grid-gutter));
+    margin-inline: auto;
+  }
+
+  /* Direct children only. Without the combinator this also claims the `<p>`
+     holding each member's name further down — and at one class plus one type
+     it outranks `.member__name`, so the name quietly came out as body copy in
+     the body face. These rules are about the copy's own paragraphs. */
+  .about-intro__copy > p {
+    margin: 0 0 1.25em;
+    font-family: var(--font-body);
+    font-size: var(--text-b2);
+    letter-spacing: var(--tracking-body);
+    line-height: var(--leading-body);
+    color: var(--ink-secondary);
+  }
+
+  /* The first paragraph is the one that has to be read, so it is the one in
+     full-strength ink. The rest sit back a step. */
+  .about-intro__copy > p:first-child {
+    color: var(--ink-primary);
+  }
+
+  .about-intro__copy > p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* The pair, side by side. Two equal columns rather than a flex row, so the
+     two read as a matched set whatever length the names run to — a row would
+     size each to its own contents and leave the portraits on different lines
+     the moment one person's name wrapped and the other's did not. */
+  .members {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(16px, 1.7vw, 28px);
+    margin: clamp(32px, 3.4vw, 48px) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Face, then who it is beside it — the arrangement the testimonial cards
+     use (`.testimonial__author` in AboutMission.astro), and the same 16px
+     between the two. Centred against the portrait rather than aligned to its
+     top, so a member with no role set still sits level with one who has. */
+  .member {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  /* `min-width: 0` because a flex item will not shrink below its content by
+     default, and a long profile label would otherwise push the card past its
+     column instead of wrapping inside it. */
+  .member__text {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  /* Square and grey, the same portrait treatment the testimonials use — see
+     `.testimonial__author img` in AboutMission.astro. Squared rather than
+     rounded because that is the shape every other frame on the site is drawn
+     in: the panel, the project stills, the picture beside this copy. A circle
+     was the odd one out.
+
+     The frame is on this wrapper rather than the image so it stands on an
+     entry with no portrait yet, in the same hairline as those other frames. */
+  .member__portrait {
+    /* Does not shrink: it is the fixed thing the text is set against, and a
+       flex item with an image in it will otherwise give up width first. */
+    flex: 0 0 auto;
+    width: clamp(56px, 5.3vw, 64px);
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: var(--border-hairline-width) solid var(--border-hairline);
+    background-color: rgb(var(--color-paper-rgb) / 0.05);
+  }
+
+  .member__portrait img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Grey, like the testimonial portraits and like the project stills at
+       rest. Colour here would make two thumbnails the brightest thing on a
+       page whose subject is the copy beside them. */
+    filter: grayscale(1);
+  }
+
+  /* Mono, the way the testimonials set their names — a name reads as a label
+     rather than as prose. */
+  .member__name {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-b3);
+    line-height: 1.35;
+    color: var(--ink-primary);
+  }
+
+  /* Body face, not the mono the name is set in. The name is a label and the
+     links are things to read and press, so they take the type the rest of the
+     page's copy is set in — the same split the footer makes between its
+     monospaced coordinates and its plain links. */
+  .member__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--font-body);
+    font-size: var(--text-b3);
+    letter-spacing: var(--tracking-body);
+    line-height: 1.35;
+  }
+
+  /* The same underline the footer's links carry, drawn rather than declared so
+     it can wipe in from the left — see the note on `.footer__link`. */
+  .member__links a {
+    position: relative;
+    color: var(--ink-muted);
+    text-decoration: none;
+    transition: color var(--transition-hover);
+  }
+
+  .member__links a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -0.2em;
+    height: var(--border-hairline-width);
+    background-color: currentColor;
+
+    --underline: 0;
+    --underline-duration: 160ms;
+
+    transform: scaleX(var(--underline));
+    transform-origin: left center;
+    transition: transform var(--underline-duration) var(--ease-out-strong);
+  }
+
+  .member__links a:focus-visible::after {
+    --underline: 1;
+    --underline-duration: 260ms;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .member__links a:hover {
+      color: var(--ink-primary);
+    }
+
+    .member__links a:hover::after {
+      --underline: 1;
+      --underline-duration: 260ms;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .member__links a::after {
+      transform: none;
+      opacity: var(--underline);
+      transition: opacity 120ms ease;
+    }
+  }
+
+  /* The paragraphs arrive top to bottom, the way they are read. Same treatment
+     the services plates get, minus the wipe: this is body copy, and copy that
+     unmasks itself is copy asking to be watched rather than read. */
+  :global(.js) .about-intro__copy[data-reveal] > p,
+  :global(.js) .about-intro__copy[data-reveal] .members {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  :global(.js) .about-intro__copy.is-revealed > p,
+  :global(.js) .about-intro__copy.is-revealed .members {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--transition-text),
+      transform var(--transition-text);
+    transition-delay: calc(var(--i, 0) * var(--stagger-text));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.js) .about-intro__copy[data-reveal] > p,
+    :global(.js) .about-intro__copy[data-reveal] .members {
+      transform: none;
+    }
+
+    :global(.js) .about-intro__copy.is-revealed > p,
+    :global(.js) .about-intro__copy.is-revealed .members {
+      transition: opacity 300ms var(--ease-out-strong);
+      transition-delay: 0s;
+    }
+  }
+
+  /* Side by side stops working once the copy column is narrower than a
+     comfortable measure, so the picture drops under the words and both take
+     the full width — the same breakpoint the vertical hairlines use. */
+  @media (max-width: 899px) {
+    .about-intro {
+      min-height: 0;
+    }
+
+    .about-intro__body {
+      grid-template-columns: minmax(0, 1fr);
+      gap: clamp(32px, 5vw, 56px);
+    }
+
+    /* The measure comes off with the grid. Below the breakpoint the twelve
+       columns are around 19px each, so five of them is a third of a phone —
+       the cap has to be released or the copy is held to a strip. */
+    .about-intro__copy {
+      grid-column: 1 / -1;
+      max-width: none;
+    }
+
+    /* One each. Side by side on a phone leaves about 90px beside the portrait,
+       which is narrower than a name in monospace — the pair would each be two
+       lines of wrapped label to save a row that is not short of space. */
+    .members {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

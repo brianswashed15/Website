@@ -1,0 +1,32 @@
+{
+  "name": "riyo-productions",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "infisical run -- npm run dev:local",
+    "dev:local": "astro dev",
+    "build": "infisical run -- npm run build:local",
+    "build:local": "astro check && astro build",
+    "preview": "infisical run -- npm run preview:local",
+    "preview:local": "astro preview",
+    "check": "astro check",
+    "studio": "infisical run -- sh -c 'SANITY_STUDIO_PROJECT_ID=$PUBLIC_SANITY_PROJECT_ID SANITY_STUDIO_DATASET=$PUBLIC_SANITY_DATASET npm run studio:local'",
+    "studio:local": "npm --prefix studio run dev",
+    "studio:build": "infisical run -- sh -c 'SANITY_STUDIO_PROJECT_ID=$PUBLIC_SANITY_PROJECT_ID SANITY_STUDIO_DATASET=$PUBLIC_SANITY_DATASET npm --prefix studio run build'",
+    "typegen": "infisical run -- sh -c 'SANITY_STUDIO_PROJECT_ID=$PUBLIC_SANITY_PROJECT_ID SANITY_STUDIO_DATASET=$PUBLIC_SANITY_DATASET npm --prefix studio run typegen'",
+    "seed:dev": "infisical run -- sh -c 'SANITY_STUDIO_PROJECT_ID=$PUBLIC_SANITY_PROJECT_ID SANITY_STUDIO_DATASET=$PUBLIC_SANITY_DATASET node studio/scripts/seed-dev-content.mjs \"$@\"' sh"
+  },
+  "dependencies": {
+    "@paper-design/shaders": "^0.0.80",
+    "@paper-design/shaders-react": "^0.0.80",
+    "@sanity/client": "^7.11.2",
+    "astro": "^7.3.1",
+    "groq": "^3.99.0",
+    "lenis": "^1.3.26"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "typescript": "^5.9.2"
+  }
+}

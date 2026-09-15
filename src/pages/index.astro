@@ -1,0 +1,45 @@
+---
+import AboutMission from "../components/sections/AboutMission.astro";
+import BrandsClients from "../components/sections/BrandsClients.astro";
+import ContactCta from "../components/sections/ContactCta.astro";
+import Footer from "../components/sections/Footer.astro";
+import Hero from "../components/sections/Hero.astro";
+import Navbar from "../components/sections/Navbar.astro";
+import SelectedProjects from "../components/sections/SelectedProjects.astro";
+import Services from "../components/sections/Services.astro";
+import SectionRule from "../components/ui/SectionRule.astro";
+import Layout from "../layouts/Layout.astro";
+import {
+  getAboutSection,
+  getBrandsClients,
+  getContactSection,
+  getFeaturedProjects,
+  getSelectedProjects,
+  getServices,
+} from "../lib/sanity";
+
+const featuredProjects = await getFeaturedProjects();
+const aboutSection = await getAboutSection();
+const selectedProjects = await getSelectedProjects();
+const brandsClients = await getBrandsClients();
+const servicesSection = await getServices();
+const contactSection = await getContactSection();
+---
+
+<Layout>
+  <Navbar />
+  <main>
+    <Hero projects={featuredProjects} />
+    <AboutMission content={aboutSection} />
+    <SectionRule />
+    <SelectedProjects content={selectedProjects} />
+    <SectionRule />
+    <BrandsClients content={brandsClients} />
+    <SectionRule />
+    <Services content={servicesSection} />
+    <SectionRule />
+    <ContactCta content={contactSection} />
+  </main>
+  <SectionRule />
+  <Footer />
+</Layout>

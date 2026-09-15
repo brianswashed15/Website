@@ -1,0 +1,235 @@
+---
+/**
+ * Reusable brand button. Renders an anchor when `href` is set and a `<button>`
+ * otherwise. Variants map to the surface tokens in src/styles/tokens.css:
+ * `green` is the accent at 20% opacity (40% on hover), `white` is paper at 0%
+ * (20% on hover).
+ */
+export type ButtonVariant = "white" | "green";
+
+interface Props {
+  variant?: ButtonVariant;
+  href?: string;
+  arrow?: boolean;
+  external?: boolean;
+  label?: string;
+  ariaLabel?: string;
+  type?: "button" | "submit" | "reset";
+}
+
+const {
+  variant = "white",
+  href,
+  arrow = false,
+  external = false,
+  label,
+  ariaLabel,
+  type = "button",
+} = Astro.props;
+
+const Tag = href ? "a" : "button";
+// Render the slots up front: a conditional slot (`{cond && <svg slot="icon-end" />}`)
+// still registers with `Astro.slots.has`, which would leave an empty icon box
+// padding one side of the label and knock it off centre.
+const iconStart = Astro.slots.has("icon-start")
+  ? await Astro.slots.render("icon-start")
+  : "";
+const iconEnd = Astro.slots.has("icon-end")
+  ? await Astro.slots.render("icon-end")
+  : "";
+const hasIconStart = iconStart.trim() !== "";
+const hasIconEnd = iconEnd.trim() !== "";
+const iconOnly = Boolean(ariaLabel) && (hasIconStart || hasIconEnd);
+const tagProps = href
+  ? {
+      href,
+      ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+      ...(external ? { target: "_blank", rel: "noopener noreferrer" } : {}),
+    }
+  : { type, ...(ariaLabel ? { "aria-label": ariaLabel } : {}) };
+---
+
+<Tag
+  class:list={["button", `button--${variant}`, { "button--icon-only": iconOnly }]}
+  {...tagProps}
+>
+  {
+    hasIconStart && (
+      <span class="button__icon" aria-hidden="true">
+        <span class="button__icon-track" set:html={`${iconStart}${iconStart}`} />
+      </span>
+    )
+  }
+  <span class="button__label"><slot>{label}</slot></span>
+  {
+    hasIconEnd && (
+      <span class="button__icon" aria-hidden="true">
+        <span class="button__icon-track" set:html={`${iconEnd}${iconEnd}`} />
+      </span>
+    )
+  }
+  {arrow && (
+    <span class="button__arrow" aria-hidden="true">
+      <span class="button__arrow-track"><span>↗</span><span>↗</span></span>
+    </span>
+  )}
+</Tag>
+
+<style>
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25em;
+    min-height: var(--navbar-height);
+    padding-inline: 16px;
+    font-family: var(--font-heading);
+    font-size: var(--text-h3);
+    font-weight: 500;
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-heading);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--transition-hover);
+  }
+
+  .button--white {
+    background-color: var(--button-white-surface);
+    color: var(--button-white-text);
+  }
+
+  .button--white:hover,
+  .button--white:focus-visible {
+    background-color: var(--button-white-surface-hover);
+  }
+
+  .button--green {
+    background-color: var(--button-green-surface);
+    color: var(--button-green-text);
+  }
+
+  .button--green:hover,
+  .button--green:focus-visible {
+    background-color: var(--button-green-surface-hover);
+  }
+
+  .button__icon {
+    display: block;
+    overflow: hidden;
+    width: 1em;
+    height: 1em;
+  }
+
+  .button__icon-track {
+    display: flex;
+    width: 200%;
+    height: 100%;
+  }
+
+  .button__icon-track :global(svg) {
+    flex: 0 0 50%;
+    height: 100%;
+  }
+
+  .button__arrow {
+    display: block;
+    overflow: hidden;
+    width: 1em;
+    height: 1em;
+  }
+
+  .button__arrow-track {
+    display: flex;
+    width: 200%;
+    height: 200%;
+  }
+
+  .button__arrow-track span {
+    flex: 0 0 50%;
+    height: 50%;
+  }
+
+  .button__icon:first-child .button__icon-track {
+    transform: translateX(0);
+  }
+
+  .button__icon:not(:first-child) .button__icon-track {
+    transform: translateX(-50%);
+  }
+
+  .button__arrow-track {
+    transform: translate(0, 0);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .button:hover .button__icon:first-child .button__icon-track {
+      animation: button-arrow-left 420ms cubic-bezier(0.86, 0, 0.07, 1);
+    }
+
+    .button:hover .button__icon:not(:first-child) .button__icon-track {
+      animation: button-arrow-right 420ms cubic-bezier(0.86, 0, 0.07, 1);
+    }
+
+    .button:hover .button__arrow-track {
+      animation: button-arrow-up-right 420ms cubic-bezier(0.86, 0, 0.07, 1);
+    }
+
+  }
+
+  @keyframes button-arrow-right {
+    from {
+      transform: translateX(-50%);
+    }
+
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes button-arrow-left {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @keyframes button-arrow-up-right {
+    from {
+      transform: translate(0, 0);
+    }
+
+    to {
+      transform: translate(-50%, 50%);
+    }
+  }
+
+  .button--icon-only {
+    min-width: var(--navbar-height);
+    padding-inline: 18px;
+  }
+
+  .button--icon-only .button__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button {
+      transition: none;
+    }
+
+    .button:hover .button__icon-track,
+    .button:hover .button__arrow-track {
+      animation: none;
+    }
+  }
+</style>

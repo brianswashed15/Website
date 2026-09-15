@@ -1,0 +1,19 @@
+<div class="column-grid" data-react-grab-ignore aria-hidden="true">
+  {Array.from({ length: 12 }, (_, index) => <span data-column={index + 1} />)}
+</div>
+
+<script>
+  const grid = document.querySelector<HTMLElement>(".column-grid");
+
+  document.addEventListener("keydown", (event) => {
+    const target = event.target;
+    const isTyping =
+      target instanceof HTMLElement &&
+      (target.isContentEditable ||
+        target.matches("input, textarea, select, [role='textbox']"));
+
+    if (!isTyping && event.shiftKey && event.code === "KeyG") {
+      grid?.classList.toggle("column-grid--visible");
+    }
+  });
+</script>

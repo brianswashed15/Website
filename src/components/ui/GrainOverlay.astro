@@ -1,0 +1,234 @@
+---
+/**
+ * The surface the whole site is printed on: a fine animated grain, a static
+ * coarse mottle underneath it, and the occasional speck of dust or hair
+ * flicking past. Sits over everything, including the navbar and the cursor,
+ * so the page reads as one printed sheet rather than as artwork with a
+ * texture laid over part of it.
+ *
+ * The marks are all small. Full-height vertical scratches were here and came
+ * out: at that length a paper-white hairline stops reading as a flaw in the
+ * print and reads as one of the page's own vertical rules glitching, and the
+ * eye goes to it every time.
+ *
+ * Both noise fields are SVG turbulence baked into a data URI, which the
+ * browser rasterizes once and then treats as an ordinary tiled image. That is
+ * the whole performance story: an `feTurbulence` re-run every frame — the
+ * usual way this effect is written — is ruinous full-screen, especially in
+ * Safari, while a static tile animated by `transform` alone stays on the
+ * compositor. The grain jumps between discrete offsets rather than sliding,
+ * because real grain resamples each frame; a smooth slide reads as drifting
+ * dirt on the lens instead.
+ *
+ * Kept deliberately faint: the project stills and the wordmark already carry
+ * halftone screens of their own, and grain loud enough to notice would turn
+ * both to mud.
+ */
+
+/**
+ * Each mark flashes twice per cycle, at two positions it travels between
+ * while invisible. Durations are coprime so the marks never fall into step
+ * with each other and the cadence never resolves into a loop, and the
+ * negative delays start them mid-cycle so they don't all arrive at once on
+ * load.
+ */
+const MARKS = [
+  { kind: "speck", duration: "5.7s", delay: "-1.8s", x1: "18vw", y1: "24vh", x2: "76vw", y2: "71vh", o1: 0.75, o2: 0.55 },
+  { kind: "speck", duration: "7.3s", delay: "-4.1s", x1: "81vw", y1: "16vh", x2: "13vw", y2: "82vh", o1: 0.6,  o2: 0.8  },
+  { kind: "speck", duration: "9.1s", delay: "-6.6s", x1: "54vw", y1: "77vh", x2: "34vw", y2: "27vh", o1: 0.7,  o2: 0.5  },
+  { kind: "speck", duration: "6.4s", delay: "-3.2s", x1: "39vw", y1: "42vh", x2: "88vw", y2: "57vh", o1: 0.5,  o2: 0.7  },
+  { kind: "speck", duration: "10.7s", delay: "-8.3s", x1: "9vw", y1: "61vh", x2: "64vw", y2: "18vh", o1: 0.65, o2: 0.45 },
+
+  { kind: "hair", duration: "8.7s",  delay: "-2.7s", x1: "67vw", y1: "44vh", x2: "29vw", y2: "58vh", o1: 0.65, o2: 0.55 },
+  { kind: "hair", duration: "12.3s", delay: "-7.1s", x1: "21vw", y1: "68vh", x2: "73vw", y2: "29vh", o1: 0.5,  o2: 0.7  },
+  { kind: "hair", duration: "15.7s", delay: "-9.4s", x1: "86vw", y1: "34vh", x2: "47vw", y2: "79vh", o1: 0.6,  o2: 0.45 },
+];
+---
+
+<div class="grain" aria-hidden="true">
+  <div class="grain__mottle"></div>
+  <div class="grain__noise"></div>
+  {
+    MARKS.map((mark) => (
+      <div
+        class:list={["grain__mark", `grain__mark--${mark.kind}`]}
+        style={`--x1: ${mark.x1}; --y1: ${mark.y1}; --x2: ${mark.x2}; --y2: ${mark.y2}; --o1: ${mark.o1}; --o2: ${mark.o2}; animation-duration: ${mark.duration}; animation-delay: ${mark.delay};`}
+      />
+    ))
+  }
+</div>
+
+<style>
+  /* Above the page but below ColumnGrid's 9999, so the Shift+G measuring
+     overlay stays crisp when a developer pulls it up. `pointer-events: none`
+     is load-bearing beyond the obvious: CoordinateCursor hit-tests the page
+     with elementFromPoint to find buttons to snap onto, and a hit-testable
+     sheet across the viewport would hide every one of them. */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .grain__mottle,
+  .grain__noise {
+    position: absolute;
+    /* Overhangs the viewport so the grain's own drift never walks an edge
+       into view; the wrapper clips the excess. */
+    inset: -10%;
+  }
+
+  /* Large, soft and static — uneven ink coverage rather than noise. This is
+     what keeps the effect reading as something printed instead of as video
+     noise, and it costs nothing, because it never animates.
+
+     The explicit filter region is what makes it tile invisibly; see the note
+     on the grain below. This layer needs it most: being smooth, its own
+     variation between neighbouring pixels is tiny, so an unstitched edge
+     stands out against it as a clean hard line rather than getting lost. */
+  .grain__mottle {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='m' filterUnits='userSpaceOnUse' x='0' y='0' width='900' height='900'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23m)'/%3E%3C/svg%3E");
+    background-size: 900px 900px;
+    opacity: 0.015;
+  }
+
+  /* Coarse rather than fine, in three parts. The feature size comes from the
+     turbulence's own baseFrequency, lowered here rather than magnifying a
+     denser tile — that would only upscale a raster and go soft. Two octaves
+     instead of three drops the layer of fine spray that sat on top and made
+     it read as scatter. And the component transfer pushes contrast back into
+     what is left: without it, noise this coarse turns into soft cloud and
+     starts doing the mottle's job below instead of reading as grain.
+
+     The tile grows to match the lower frequency — at this scale a small one
+     has too few features in it to hide its own repeat.
+
+     `stitchTiles` alone is not enough to make that repeat invisible, which is
+     the trap here: a filter's region defaults to 120% of the element it is
+     applied to, and stitching is done across that region rather than across
+     the rect. The tile exported is 400 wide, the seamless pattern generated
+     is 480, so tiling the export was tiling a crop — and crop edges do not
+     meet. Pinning the region to the rect with `filterUnits='userSpaceOnUse'`
+     makes the two the same size, and the seam goes. */
+  .grain__noise {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n' filterUnits='userSpaceOnUse' x='0' y='0' width='400' height='400'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.4' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='3' intercept='-1'/%3E%3CfeFuncG type='linear' slope='3' intercept='-1'/%3E%3CfeFuncB type='linear' slope='3' intercept='-1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 400px 400px;
+    opacity: 0.055;
+    animation: grain-shift 900ms steps(1, end) infinite;
+  }
+
+  /* Eight discrete offsets a second. Every stop is a jump to a different
+     sample of the same tile, which is what grain does; interpolating between
+     them would slide the texture across the page instead. */
+  @keyframes grain-shift {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    12.5% {
+      transform: translate3d(-1.5%, -2.5%, 0);
+    }
+    25% {
+      transform: translate3d(-3%, 1.5%, 0);
+    }
+    37.5% {
+      transform: translate3d(2%, -1%, 0);
+    }
+    50% {
+      transform: translate3d(-1%, 2.5%, 0);
+    }
+    62.5% {
+      transform: translate3d(2.5%, 1%, 0);
+    }
+    75% {
+      transform: translate3d(-2.5%, -1.5%, 0);
+    }
+    87.5% {
+      transform: translate3d(1%, 2%, 0);
+    }
+  }
+
+  .grain__mark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    animation-name: mark-flick;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  /* Held at one position for the whole of each flash and only travelling to
+     the next while invisible, so a mark never smears across the screen on
+     its way somewhere. Roughly a sixth of a second on screen, twice a cycle:
+     long enough to register, short enough to read as something caught rather
+     than something shown. */
+@keyframes mark-flick {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--x1), var(--y1), 0);
+  }
+
+  0.6% {
+    opacity: var(--o1);
+    transform: translate3d(var(--x1), var(--y1), 0);
+  }
+
+  2% {
+    opacity: 0;
+    transform: translate3d(var(--x1), var(--y1), 0);
+  }
+
+  47% {
+    opacity: 0;
+    transform: translate3d(var(--x2), var(--y2), 0);
+  }
+
+  47.6% {
+    opacity: var(--o2);
+    transform: translate3d(var(--x2), var(--y2), 0);
+  }
+
+  49% {
+    opacity: 0;
+    transform: translate3d(var(--x2), var(--y2), 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--x1), var(--y1), 0);
+  }
+}
+
+  .grain__mark--speck {
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: rgb(var(--color-paper-rgb) / 0.8);
+  }
+
+  /* Rotated with the standalone `rotate` property, not `transform`, which the
+     flicker keyframes are already using to place it. */
+.grain__mark--hair {
+  width: 14px;
+  height: 1px;
+  background: rgb(var(--color-paper-rgb) / 0.8);
+  rotate: 24deg;
+}
+
+  @media (prefers-reduced-motion: reduce) {
+    /* The texture is the point and it stays; only its flicker goes. A field
+       of noise resampling eight times a second is exactly the sort of
+       full-viewport motion this setting gets turned on to stop. */
+    .grain__noise {
+      animation: none;
+    }
+
+    /* The marks are pure decoration — with nothing to flick past, they have
+       nothing left to say, so they go rather than sitting there as debris. */
+    .grain__mark {
+      display: none;
+    }
+  }
+</style>

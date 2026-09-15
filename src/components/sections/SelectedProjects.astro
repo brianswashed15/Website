@@ -1,0 +1,865 @@
+---
+/**
+ * Figma node 146:258. The heading sits at the right edge, and beneath it each
+ * selected project is a hairline-ruled band: a 16:9 still on the left half and
+ * the title, subtitle, and metrics bottom-aligned on the right half. A green
+ * call to action closes the section.
+ *
+ * Until a row is scrolled to, its media is printed as a grey halftone and its
+ * video is paused; scrolling past returns it to both. The video loads as the
+ * row approaches but waits for the same bar the halftone clears at, so a row
+ * gains colour and motion at one moment rather than two.
+ *
+ * The `grid` layout is the full /work listing: the same rows, stacked into
+ * cards three to a row, each a still over its title and description. Every
+ * treatment — halftone, clip, arrow, cursor snap, reveal — is shared, so the
+ * two listings cannot drift apart.
+ */
+import type { ProjectSummary, SelectedProjectsSection } from "../../lib/sanity";
+import Button from "../ui/Button.astro";
+import SectionHeading from "../ui/SectionHeading.astro";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+
+interface Props {
+  content: SelectedProjectsSection;
+  layout?: "list" | "grid";
+}
+
+const { content, layout = "list" } = Astro.props;
+const isGrid = layout === "grid";
+const projects = content.projects;
+const showCallToAction = Boolean(
+  content.callToActionLabel && content.callToActionHref,
+);
+
+/** A still is half the content width; 1280 covers the 1440 design at 2x. */
+const STILL_WIDTHS = [640, 1280];
+const stillSizes = isGrid
+  ? "(min-width: 900px) 33vw, (min-width: 600px) 50vw, 100vw"
+  : "(min-width: 900px) 50vw, 100vw";
+const stillHeight = (width: number) => Math.round((width * 9) / 16);
+const stillSrc = (url: string, width: number) =>
+  `${url}?w=${width}&h=${stillHeight(width)}&fit=crop&auto=format`;
+
+/**
+ * videoUrl is the real source. devVideoUrl falls back to the file uploaded to
+ * Sanity, which serves from Sanity's CDN until projects have hosted playback URLs.
+ */
+const videoFor = (project: ProjectSummary) =>
+  project.videoUrl ?? project.devVideoUrl;
+---
+
+<section
+  class:list={["selected", { "selected--grid": isGrid }]}
+  aria-labelledby="selected-heading"
+>
+  <SectionHeading id="selected-heading">{content.heading}</SectionHeading>
+
+  {
+    projects.length > 0 ? (
+      <ul class="selected__list">
+        {projects.map((project) => (
+          <li
+            class:list={["project", { "project--linked": project.projectPageUrl }]}
+            data-coord-snap
+            data-coord-lines="hidden"
+          >
+            <div class="project__still">
+              {project.posterUrl && (
+                <img
+                  src={stillSrc(project.posterUrl, 1280)}
+                  srcset={STILL_WIDTHS.map(
+                    (width) => `${stillSrc(project.posterUrl!, width)} ${width}w`,
+                  ).join(", ")}
+                  sizes={stillSizes}
+                  width="1280"
+                  height={stillHeight(1280)}
+                  alt={project.posterAlt ?? project.title}
+                  loading="lazy"
+                  decoding="async"
+                />
+              )}
+              {videoFor(project) && (
+                 <video
+                   class="project__video"
+                   data-project-video
+                   src={videoFor(project)}
+                  preload="none"
+                  muted
+                  loop
+                  playsinline
+                  tabindex="-1"
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+
+            {project.projectPageUrl && (
+              <span class="project__arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M14 4.37866L21.6213 12L14 19.6213L11.8787 17.5L15.8787 13.5H3V10.5H15.8787L11.8787 6.49999L14 4.37866Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+            )}
+
+            <div class="project__detail" data-reveal>
+              <div class="project__text">
+                <h3 class="project__title">
+                  {project.projectPageUrl ? (
+                    <a class="project__link" href={project.projectPageUrl}>
+                      {project.title}
+                    </a>
+                  ) : (
+                    project.title
+                  )}
+                </h3>
+                {isGrid
+                  ? project.description && (
+                      <p class="project__description">{project.description}</p>
+                    )
+                  : project.subtitle && (
+                      <p class="project__subtitle">{project.subtitle}</p>
+                    )}
+              </div>
+
+              {!isGrid && project.metrics.length > 0 && (
+                <ul class="metrics">
+                  {project.metrics.map((metric, index) => (
+                    <li class="metric" style={`--i: ${index + 2}`}>
+                      <span class="metric__value">{metric.value}</span>
+                      <span class="metric__label">{metric.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="selected__empty">
+        Selected work managed in Sanity will appear here.
+      </p>
+    )
+  }
+
+  {
+    showCallToAction && (
+      <div class="selected__cta">
+        <Button href={content.callToActionHref} variant="green">
+          {content.callToActionLabel}
+          <svg slot="icon-end" viewBox="0 0 24 24" fill="none">
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M14 4.37866L21.6213 12L14 19.6213L11.8787 17.5L15.8787 13.5H3V10.5H15.8787L11.8787 6.49999L14 4.37866Z"
+              fill="currentColor"
+            />
+          </svg>
+        </Button>
+      </div>
+    )
+  }
+
+  <VerticalEdges />
+</section>
+
+<script>
+  import "../../scripts/reveal";
+
+  /**
+   * A project row wakes up when the reader is looking at it: the halftone
+   * screen lifts off the still, the row takes its tint, and the clip runs.
+   *
+   * On a pointer that is hover. On a phone there is no hover to read, so the
+   * same state is given to whichever row the reader has actually scrolled to —
+   * `(hover: none)` rather than a width, because the question is not how wide
+   * the screen is but whether there is a pointer to hover with.
+   *
+   * One row at a time, and it is the most visible one rather than every row
+   * that happens to be on screen. Two clips running at once is two decoders,
+   * two downloads and two rows claiming to be the one being read; the reader
+   * is looking at one thing.
+   *
+   * Driven by IntersectionObserver alone, with no scroll listener. The
+   * observer reports from the compositor's own bookkeeping and only when a
+   * threshold is actually crossed, where a scroll handler would run on every
+   * frame of a touch scroll to answer the same question — and that is the work
+   * a phone can least afford while it is scrolling video.
+   */
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const hoverless = window.matchMedia("(hover: none)");
+  const section = document.querySelector<HTMLElement>(".selected");
+  const rows = Array.from(
+    document.querySelectorAll<HTMLElement>(".selected .project"),
+  );
+
+  /**
+   * On the /work grid a card plays when it is scrolled to, on every device —
+   * the grid is browsed by scrolling, not by pointing at cards one at a time.
+   * The homepage list keeps hover wherever there is a pointer to hover with.
+   */
+  const isGrid = section?.classList.contains("selected--grid") ?? false;
+  const scrollDriven = () => isGrid || hoverless.matches;
+
+  /**
+   * The reading band: the observer's root is shrunk to a strip across the
+   * middle of the screen, and the active row is the one lying in it.
+   *
+   * Not "the most visible row", which is the obvious version and is wrong
+   * here. The rows are around a third of a screen tall, so three of them are
+   * fully visible at once and all three report a ratio of 1 — the tie would
+   * hand the state to whichever sits highest, which is the one at the top of
+   * the screen rather than the one being looked at, and it would only change
+   * hands when a row left the screen entirely. A band picks the row under the
+   * reader's eye and hands over halfway between two rows.
+   *
+   * The band can empty: the list is spaced by `clamp(56px, 6.944vw, 100px)`,
+   * which at the top of that range is about as tall as the band itself, so the
+   * gap between two rows can cover it. That is not treated as "nothing is
+   * active" — the row that had it keeps it until another takes it, because a
+   * clip stopping and restarting every time a gap crossed the middle of the
+   * screen is the one thing this must not do. Leaving the section is what ends
+   * it, and that is watched separately below.
+   */
+  const BAND = "-45% 0px -45% 0px";
+
+  interface Control {
+    play: () => void;
+    pause: () => void;
+  }
+
+  const controls = new Map<HTMLElement, Control>();
+
+  for (const row of rows) {
+    const video = row.querySelector<HTMLVideoElement>("[data-project-video]");
+    if (!video) continue;
+
+    const play = () => {
+      if (reduced.matches || document.hidden) return;
+      if (video.preload !== "auto") {
+        video.preload = "auto";
+        if (video.readyState === HTMLMediaElement.HAVE_NOTHING) video.load();
+      }
+      // Autoplay can still be refused even when muted; the still stays.
+      video.play().catch(() => {});
+    };
+
+    const pause = () => {
+      video.pause();
+      video.currentTime = 0;
+      video.classList.remove("is-playing");
+    };
+
+    controls.set(row, { play, pause });
+
+    video.addEventListener("playing", () => video.classList.add("is-playing"));
+
+    /**
+     * A tap fires `pointerenter` too, and never fires the matching
+     * `pointerleave` — so on a hoverless device these would start a clip the
+     * observer below did not choose and has no way to stop. On the grid a
+     * pointer can still start a card the scroll has not reached, but leaving
+     * it does not stop one the scroll is playing.
+     */
+    row.addEventListener("pointerenter", () => {
+      if (!hoverless.matches) play();
+    });
+    row.addEventListener("pointerleave", () => {
+      if (!hoverless.matches && !active.has(row)) pause();
+    });
+
+    // Focus is not a pointer and works on any device, so it is left alone —
+    // except that leaving a card the scroll has made active keeps it playing.
+    row.addEventListener("focusin", play);
+    row.addEventListener("focusout", () => {
+      if (!active.has(row)) pause();
+    });
+  }
+
+  /** The rows the observer has handed the state to. */
+  const active = new Set<HTMLElement>();
+
+  const deactivate = (row: HTMLElement) => {
+    row.classList.remove("is-active");
+    active.delete(row);
+    // A card still under the pointer keeps its hover state, so its clip too.
+    if (!hoverless.matches && row.matches(":hover")) return;
+    controls.get(row)?.pause();
+  };
+
+  const deactivateAll = () => {
+    for (const row of [...active]) deactivate(row);
+  };
+
+  // The list's scroll band only observes rows that have a clip, as it always
+  // has; the grid observes every card, so a card without one still lifts out
+  // of its halftone when it is scrolled to.
+  const observed = isGrid ? rows : [...controls.keys()];
+
+  if (observed.length > 0 && "IntersectionObserver" in window) {
+    /** How much of the band each row currently covers, in pixels. */
+    const covered = new Map<HTMLElement, number>();
+
+    /** Whether the section is on screen at all; see the observer below. */
+    let onScreen = true;
+
+    const settle = () => {
+      if (
+        !scrollDriven() ||
+        reduced.matches ||
+        document.hidden ||
+        !onScreen
+      ) {
+        deactivateAll();
+        return;
+      }
+
+      // Whichever row fills more of the band. Two rows share it only while the
+      // boundary between them is inside it, and the larger share is the one
+      // the reading line is further into — so the hand-off lands mid-band.
+      let bestCover = 0;
+      for (const cover of covered.values()) bestCover = Math.max(bestCover, cover);
+
+      // An empty band is a gap passing the reading line, not an instruction to
+      // stop — whoever has the state keeps it until a row is there to take it.
+      if (bestCover === 0) return;
+
+      // The list hands the state to one row. The grid hands it to every card
+      // in the row being read: cards side by side share one vertical extent,
+      // so they tie, and all of them are what the reader is looking at.
+      const winners = new Set<HTMLElement>();
+      for (const [row, cover] of covered) {
+        if (cover >= bestCover - 1) {
+          winners.add(row);
+          if (!isGrid) break;
+        }
+      }
+
+      for (const row of [...active]) {
+        if (!winners.has(row)) deactivate(row);
+      }
+      for (const row of winners) {
+        if (active.has(row)) continue;
+        active.add(row);
+        row.classList.add("is-active");
+        controls.get(row)?.play();
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const row = entry.target as HTMLElement;
+          if (entry.isIntersecting) {
+            covered.set(row, entry.intersectionRect.height);
+          } else {
+            covered.delete(row);
+          }
+        }
+        settle();
+      },
+      // Steps within the band, so a row taking it over is reported on the way
+      // rather than only at the moment it first touches it.
+      { rootMargin: BAND, threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+
+    for (const row of observed) observer.observe(row);
+
+    /**
+     * What actually ends it. The band alone cannot say the difference between
+     * a gap crossing the middle of the screen and the list having been scrolled
+     * past, and only the second should stop the clip.
+     */
+    if (section) {
+      new IntersectionObserver(
+        (entries) => {
+          onScreen = entries[entries.length - 1].isIntersecting;
+          settle();
+        },
+        { threshold: 0 },
+      ).observe(section);
+    }
+
+    hoverless.addEventListener("change", settle);
+    reduced.addEventListener("change", settle);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) deactivateAll();
+      else settle();
+    });
+  }
+
+  /**
+   * The hover path's own housekeeping. Backgrounding the tab stops whatever is
+   * running; coming back resumes only if the pointer is still on the row.
+   */
+  const syncHovered = () => {
+    if (hoverless.matches) return;
+    for (const [row, control] of controls) {
+      if (reduced.matches || document.hidden) control.pause();
+      else if (row.matches(":hover, :focus-within")) control.play();
+    }
+  };
+
+  document.addEventListener("visibilitychange", syncHovered);
+  reduced.addEventListener("change", syncHovered);
+</script>
+
+<style>
+  .selected {
+    /* One column of the 12-column grid. The percentage resolves against this
+       section's content box, which is exactly the grid width. */
+    --column-width: calc((100% - 11 * var(--grid-gutter)) / 12);
+
+    position: relative;
+    /* The call to action sits in an even band: the same air above it as
+       below, so it reads as closing the section rather than falling out of
+       the bottom of it. */
+    --cta-gap: clamp(40px, 4.4vw, 63px);
+
+    padding: var(--section-heading-space) var(--grid-margin) var(--cta-gap);
+  }
+
+  /* The hairline down the right edge of the sixth column, measured from the
+     page edge because an absolutely positioned child resolves its percentages
+     against the section's padding box rather than the grid. */
+  .selected::after {
+    --grid-column: calc(
+      (100% - 2 * var(--grid-margin) - 11 * var(--grid-gutter)) / 12
+    );
+
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: calc(
+      var(--grid-margin) + 6 * var(--grid-column) + 5 * var(--grid-gutter)
+    );
+    width: var(--border-hairline-width);
+    background-color: var(--border-hairline);
+    pointer-events: none;
+  }
+
+  .selected__list {
+    display: flex;
+    flex-direction: column;
+    /* Wider than the 28px in Figma: the rows need room to read as separate. */
+    gap: clamp(56px, 6.944vw, 100px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Each row is ruled top and bottom, so the gap between rows reads as two
+     hairlines rather than one. */
+  .project {
+    position: relative;
+    display: grid;
+    /* The still spans the first six columns, so its right edge lands on the
+       section's centre hairline; the copy picks up at the seventh. */
+    grid-template-columns:
+      calc(6 * var(--column-width) + 5 * var(--grid-gutter))
+      minmax(0, 1fr);
+    gap: var(--grid-gutter);
+    align-items: end;
+    border-block: var(--border-hairline-width) solid var(--border-hairline);
+    transition: background-color var(--transition-hover);
+  }
+
+  /* `is-active` is the same state arrived at without a pointer: on a device
+     that cannot hover, the script gives it to whichever row the reader has
+     scrolled to. Every rule the hover state sets carries it, so the two are
+     the same state by construction rather than by two lists kept in step. */
+  .project:hover,
+  .project:focus-within,
+  .project.is-active {
+    background-color: rgb(var(--color-paper-rgb) / 0.05);
+  }
+
+  /* Off screen the media is printed rather than shown: grey, softened, and
+     screened into dots. The effect is split across three layers because that
+     is what makes dots at all — the media is blurred so its tones spread, a
+     dot grid is blended over it, and the contrast on this element thresholds
+     the two into hard black-and-white cells. Losing any one layer leaves a
+     grey blur with a texture on top.
+
+     The three dials are here, and they pull against each other: more blur
+     needs more contrast to stay dotted rather than turning to mush, and a
+     larger dot wants more blur to feed it. */
+  .project__still {
+    --halftone-blur: 5px;
+    --halftone-dot: 5px;
+    --halftone-contrast: 2.6;
+
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background-color: rgb(var(--color-paper-rgb) / 0.05);
+    filter: contrast(var(--halftone-contrast));
+    transition: filter var(--transition-reveal);
+  }
+
+  .project__still img,
+  .project__video {
+    filter: grayscale(1) blur(var(--halftone-blur));
+    transition: filter var(--transition-reveal);
+  }
+
+  /* The screen itself. Sits above the video, so it prints whichever of the
+     two layers is currently visible. */
+  .project__still::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+      circle at center,
+      #000 26%,
+      transparent 28%
+    );
+    background-size: var(--halftone-dot) var(--halftone-dot);
+    mix-blend-mode: hard-light;
+    pointer-events: none;
+    transition: opacity var(--transition-reveal);
+  }
+
+  .project:hover .project__still,
+  .project:focus-within .project__still,
+  .project.is-active .project__still {
+    filter: contrast(1);
+  }
+
+  .project:hover .project__still img,
+  .project:hover .project__video,
+  .project:focus-within .project__still img,
+  .project:focus-within .project__video,
+  .project.is-active .project__still img,
+  .project.is-active .project__video {
+    filter: grayscale(0) blur(0);
+  }
+
+  .project:hover .project__still::after,
+  .project:focus-within .project__still::after,
+  .project.is-active .project__still::after {
+    opacity: 0;
+  }
+
+  .project__still img,
+  .project__video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The video sits on the still and is revealed once it has frames, so the
+     row never flashes empty while it loads. */
+  .project__video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity var(--transition-hover);
+  }
+
+  .project__video.is-playing {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .project__still,
+    .project__still img,
+    .project__still::after,
+    .project__video {
+      transition: none;
+    }
+  }
+
+  /* A linked row is clickable across its whole band, but only the title is
+     the link: the anchor's ::after is stretched over the row, so the accessible
+     name stays the project title rather than the still, the metrics, and the
+     video all read out at once. */
+  .project__link {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .project__link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* Over the video, which paints on its own layer. */
+    z-index: 1;
+  }
+
+  .project--linked:hover .project__link,
+  .project__link:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 0.12em;
+  }
+
+  /* The corner the row opens from. It is held back until the row is pointed at,
+     so the listing stays a listing at rest and only admits it is a set of links
+     once the reader is in it. The arrow carries on the way it arrived — in from
+     the corner, then a step further right under the pointer — so hovering reads
+     as one continuous move outward rather than a badge switching on.
+
+     It sits beside the still rather than inside it: the still is clipped and
+     carries the halftone's contrast filter, which would screen the arrow into
+     dots along with the media. */
+  .project__arrow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(40px, 3.3vw, 48px);
+    aspect-ratio: 1;
+    background-color: rgb(var(--color-accent-rgb) / 0.2);
+    color: var(--color-accent);
+    opacity: 0;
+    transform: translate(-25%, -25%);
+    pointer-events: none;
+    transition:
+      opacity var(--transition-text),
+      transform var(--transition-text);
+  }
+
+  .project__arrow svg {
+    width: 45%;
+    height: 45%;
+    transition: transform var(--transition-text);
+  }
+
+  .project--linked:hover .project__arrow,
+  .project--linked:focus-within .project__arrow {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  .project--linked:hover .project__arrow svg,
+  .project--linked:focus-within .project__arrow svg {
+    transform: translateX(15%);
+  }
+
+  /* Nothing hovers on a touch screen, so the arrow is simply part of the row. */
+  @media (hover: none) {
+    .project--linked .project__arrow {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .project__arrow,
+    .project__arrow svg {
+      transition: opacity 300ms var(--ease-out-strong);
+      transform: none;
+    }
+
+    .project--linked:hover .project__arrow svg,
+    .project--linked:focus-within .project__arrow svg {
+      transform: none;
+    }
+  }
+
+  .project__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 33px;
+    padding-block: 24px;
+  }
+
+  /* The still already resolves out of its halftone as the row arrives; without
+     this the copy beside it just sits there while that happens, and the row
+     reads as half a thing. Movement and opacity only — the halftone is a stack
+     of animated filters over a playing video, and it is the most expensive
+     thing on the page. Nothing here adds a second one.
+
+     Order is the hierarchy: the title leads, the subtitle follows, and the
+     metrics come in behind it, one after another. */
+  :global(.js) .project__detail[data-reveal] .project__title,
+  :global(.js) .project__detail[data-reveal] .project__subtitle,
+  :global(.js) .project__detail[data-reveal] .project__description,
+  :global(.js) .project__detail[data-reveal] .metric {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  :global(.js) .project__detail[data-reveal] .project__subtitle,
+  :global(.js) .project__detail[data-reveal] .project__description {
+    --i: 1;
+  }
+
+  :global(.js) .project__detail.is-revealed .project__title,
+  :global(.js) .project__detail.is-revealed .project__subtitle,
+  :global(.js) .project__detail.is-revealed .project__description,
+  :global(.js) .project__detail.is-revealed .metric {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--transition-text),
+      transform var(--transition-text);
+    transition-delay: calc(var(--i, 0) * var(--stagger-text));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.js) .project__detail[data-reveal] .project__title,
+    :global(.js) .project__detail[data-reveal] .project__subtitle,
+    :global(.js) .project__detail[data-reveal] .project__description,
+    :global(.js) .project__detail[data-reveal] .metric {
+      transform: none;
+    }
+
+    :global(.js) .project__detail.is-revealed .project__title,
+    :global(.js) .project__detail.is-revealed .project__subtitle,
+    :global(.js) .project__detail.is-revealed .project__description,
+    :global(.js) .project__detail.is-revealed .metric {
+      transition: opacity 300ms var(--ease-out-strong);
+      transition-delay: 0s;
+    }
+  }
+
+  .project__title,
+  .project__subtitle {
+    margin: 0;
+    font-family: var(--font-heading);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-heading);
+  }
+
+  /* Only the title is a heading; the copy around it takes the regular weight. */
+  .project__title {
+    font-size: var(--text-h2);
+    font-weight: var(--weight-medium);
+    color: var(--ink-primary);
+  }
+
+  .project__subtitle {
+    margin-top: 8px;
+    font-size: var(--text-h3);
+    font-weight: var(--weight-regular);
+    color: var(--ink-muted);
+  }
+
+  .project__description {
+    margin: 12px 0 0;
+    font-family: var(--font-body);
+    font-size: var(--text-b2);
+    font-weight: var(--weight-regular);
+    line-height: var(--leading-body);
+    color: var(--ink-muted);
+    /* Descriptions run to a paragraph; the card holds a glance at one so the
+       rows stay level. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+
+  .metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .metric {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-heading);
+    font-size: var(--text-h3);
+    font-weight: var(--weight-regular);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-heading);
+  }
+
+  .metric__value {
+    padding: 4px 6px;
+    background-color: rgb(var(--color-accent-rgb) / 0.2);
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+
+  .metric__label {
+    color: var(--ink-primary);
+  }
+
+  .selected__empty {
+    margin: 0;
+    font-size: var(--text-b2);
+    color: var(--ink-muted);
+  }
+
+  /* Set in from the left by the same half column the heading is held off the
+     right, so the two ends of the section are inset alike. */
+  .selected__cta {
+    display: flex;
+    margin-top: var(--cta-gap);
+    padding-left: calc(var(--column-width) / 2);
+  }
+
+  .selected__cta :global(.button) {
+    border: 0;
+  }
+
+  /* The grid layout: each row becomes a card, still on top and copy under it,
+     three to a row. No centre hairline — there is no left half and right half
+     for it to divide. */
+  .selected--grid::after {
+    content: none;
+  }
+
+  .selected--grid .selected__list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(40px, 4.4vw, 63px) var(--grid-gutter);
+  }
+
+  /* Cards are separated by the grid gap alone, so they drop the rows'
+     top and bottom hairlines. */
+  .selected--grid .project {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    align-items: start;
+    border-block: 0;
+  }
+
+  .selected--grid .project__detail {
+    padding: 20px 16px 24px;
+  }
+
+  .selected--grid .project__title {
+    font-size: var(--text-h3);
+  }
+
+  @media (max-width: 899px) {
+    .selected--grid .selected__list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 599px) {
+    .selected--grid .selected__list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Half a 16:9 still plus a 40px title stops working side by side on a phone. */
+  @media (max-width: 899px) {
+    /* The rows stack here, so a line down the middle would cut through them. */
+    .selected::after {
+      content: none;
+    }
+
+    .project {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+  }
+</style>

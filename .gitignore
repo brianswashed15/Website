@@ -1,4 +1,15 @@
 node_modules/
 dist/
+.astro/
+.infisical.json
+studio/node_modules/
+studio/dist/
+studio/.sanity/
+studio/schema.json
+sanity.types.ts
 .DS_Store
-.env
+.vercel/
+.env*
+
+# Local Netlify folder
+.netlify

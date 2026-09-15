@@ -1,0 +1,525 @@
+---
+/**
+ * Figma node 228:18. A muted heading at the right edge over a hairline-ruled
+ * board of square cells, each holding one client logo.
+ *
+ * The board is smaller than the client list, so it is a window onto the list
+ * rather than the whole of it. Cells swap their logo out on a loop: the
+ * outgoing logo rises and fades, the incoming one arrives from below into the
+ * same place. Everything travels the same way, which is what makes a swap read
+ * as one logo replacing another rather than two unrelated fades.
+ *
+ * The sweep order is reshuffled every pass, because a board that always swaps
+ * left to right becomes a pattern the reader can predict and then stop looking
+ * at. The point is a wall that is never quite the same twice.
+ *
+ * Logo treatment — grayscale, opacity, tint, scale — is content, not styling:
+ * it comes from `client.logoDisplay` and is applied as custom properties so a
+ * swap carries the incoming logo's treatment with it.
+ */
+import type { BrandsClientsSection } from "../../lib/sanity";
+import SectionHeading from "../ui/SectionHeading.astro";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+
+interface Props {
+  content: BrandsClientsSection;
+}
+
+const { content } = Astro.props;
+const clients = content.clients;
+
+/**
+ * Four across and two down. Narrower viewports drop columns and hide the cells
+ * that fall off the end, so the board is always full rows.
+ */
+const COLUMNS = 4;
+const ROWS = 2;
+const CELL_COUNT = COLUMNS * ROWS;
+
+/** A cell is ~187px at the 1440 design width and the logo fills 80% of it. */
+const logoSrc = (url: string) => `${url}?w=400&fit=max&auto=format`;
+
+const styleFor = (index: number) => {
+  const { display } = clients[index];
+  return [
+    `--logo: url("${logoSrc(clients[index].logoUrl)}")`,
+    `--logo-scale: ${display.scale / 100}`,
+    `--logo-opacity: ${display.opacity / 100}`,
+    `--logo-grayscale: ${display.grayscale ? 1 : 0}`,
+    `--logo-invert: ${display.invert ? 1 : 0}`,
+    ...(display.tint ? [`--logo-tint: ${display.tint}`] : []),
+  ].join("; ");
+};
+
+/**
+ * The board is filled by cycling the list, so a list shorter than the board
+ * repeats rather than leaving cells empty — which is what the Figma comp does
+ * with its spare Audible marks.
+ */
+const cells = clients.length
+  ? Array.from({ length: CELL_COUNT }, (_, index) => index % clients.length)
+  : [];
+
+/** What the script swaps between. Treatment travels with the logo. */
+const pool = clients.map((entry, index) => ({
+  name: entry.name,
+  src: logoSrc(entry.logoUrl),
+  style: styleFor(index),
+  tinted: Boolean(entry.display.tint),
+}));
+---
+
+<section class="brands" aria-labelledby="brands-heading">
+  <SectionHeading id="brands-heading">{content.heading}</SectionHeading>
+
+  {
+    cells.length > 0 ? (
+      <Fragment>
+        {/* The board churns, so what it shows at any moment is not a list. The
+            names are given once, in full and in order, to anything reading
+            rather than looking. */}
+        <ul class="visually-hidden">
+          {clients.map((entry) => (
+            <li>{entry.name}</li>
+          ))}
+        </ul>
+
+        <div class="board" data-brand-board aria-hidden="true">
+          {cells.map((clientIndex) => (
+            <div class="cell" data-coord-snap data-coord-lines="hidden">
+              {/* Two stacked layers per cell: one showing, one waiting. A swap
+                  hands over between them, so neither has to be rebuilt. */}
+              <span
+                class="cell__logo is-current"
+                style={styleFor(clientIndex)}
+                data-tinted={clients[clientIndex].display.tint ? "" : undefined}
+              />
+              <span
+                class="cell__logo"
+                style={styleFor(clientIndex)}
+                data-tinted={clients[clientIndex].display.tint ? "" : undefined}
+              />
+            </div>
+          ))}
+        </div>
+
+        <script
+          is:inline
+          type="application/json"
+          data-brand-pool
+          set:html={JSON.stringify(pool)}
+        />
+      </Fragment>
+    ) : (
+      <p class="brands__empty">
+        Client logos managed in Sanity will appear here.
+      </p>
+    )
+  }
+
+  <VerticalEdges />
+</section>
+
+<script>
+  import "../../scripts/reveal";
+
+  /** Kept in step with --swap-duration in the stylesheet below. */
+  const SWAP_MS = 520;
+  /** The step between two cells in a pass. One pass across the board reads as
+      a wave rather than as eight unrelated events. */
+  const STAGGER_MS = 220;
+  /** The rest between passes. Long enough that the board is a wall the reader
+      can look away from, not a slideshow demanding attention. */
+  const PAUSE_MS = 2600;
+  /** The entrance runs tighter than a swap pass: it is one gesture arriving,
+      not eight events, and the board should be full by the time the reader
+      has finished reading the heading above it. */
+  const ENTER_STAGGER_MS = 45;
+
+  interface PoolEntry {
+    name: string;
+    src: string;
+    style: string;
+    tinted: boolean;
+  }
+
+  const board = document.querySelector<HTMLElement>("[data-brand-board]");
+  const poolScript = document.querySelector<HTMLScriptElement>(
+    "[data-brand-pool]",
+  );
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  if (board && poolScript) {
+    const pool: PoolEntry[] = JSON.parse(poolScript.textContent ?? "[]");
+    const cells = Array.from(board.querySelectorAll<HTMLElement>(".cell"));
+
+    // Nothing to swap to: one logo would only ever be replaced by itself.
+    if (pool.length > 1) {
+      // A logo is painted as a background image, which cannot be decode-gated
+      // the way an <img> can — a swap to an uncached logo would show an empty
+      // cell for a frame. So the whole list is fetched up front and the loop
+      // does not start until every one of them has settled. They are small,
+      // and the ones the board starts on are in the page already.
+      let ready = false;
+      const preloaded = Promise.all(
+        pool.map(
+          (entry) =>
+            new Promise<void>((resolve) => {
+              const image = new Image();
+              image.onload = image.onerror = () => resolve();
+              image.src = entry.src;
+            }),
+        ),
+      );
+
+      /** Which pool entry each cell is currently showing. */
+      const shown = cells.map((_, index) => index % pool.length);
+
+      /**
+       * Hands a waiting layer its next logo. The treatment lands with
+       * transitions suppressed for a frame: grayscale and invert belong to the
+       * logo rather than to the swap, and `filter` is animated for the blur, so
+       * without this a swap from an inverted mark to a plain one would spend
+       * half a second fading through the difference. The layer is transparent
+       * and out of position at this point, so nothing here is seen.
+       */
+      const apply = (layer: HTMLElement, entry: PoolEntry) => {
+        layer.setAttribute("style", `${entry.style}; transition: none`);
+        layer.toggleAttribute("data-tinted", entry.tinted);
+        // Forces the suppressed state to be committed before it is lifted.
+        void layer.offsetWidth;
+        layer.style.removeProperty("transition");
+      };
+
+      /**
+       * The board is usually smaller than the list, so some logo is always
+       * waiting off it. Taking the least-shown one keeps the whole list in
+       * rotation and pushes duplicates apart instead of letting one mark
+       * colonise the wall.
+       */
+      const pick = (cellIndex: number) => {
+        const counts = pool.map(
+          (_, index) => shown.filter((value) => value === index).length,
+        );
+        let best = Infinity;
+        const candidates: number[] = [];
+        for (let index = 0; index < pool.length; index += 1) {
+          if (index === shown[cellIndex]) continue;
+          if (counts[index] < best) {
+            best = counts[index];
+            candidates.length = 0;
+          }
+          if (counts[index] === best) candidates.push(index);
+        }
+        return candidates[Math.floor(Math.random() * candidates.length)];
+      };
+
+      const swap = (cellIndex: number) => {
+        const cell = cells[cellIndex];
+        const layers = Array.from(
+          cell.querySelectorAll<HTMLElement>(".cell__logo"),
+        );
+        const leaving = layers.find((layer) =>
+          layer.classList.contains("is-current"),
+        );
+        const entering = layers.find((layer) => layer !== leaving);
+        if (!leaving || !entering) return;
+
+        const next = pick(cellIndex);
+        shown[cellIndex] = next;
+        apply(entering, pool[next]);
+
+        leaving.classList.remove("is-current");
+        leaving.classList.add("is-leaving");
+        entering.classList.add("is-current");
+
+        // Returning the spent layer to the waiting position below. It is fully
+        // transparent by now, so travelling back down is not seen — and doing
+        // it here means the next swap finds it already in place.
+        window.setTimeout(() => leaving.classList.remove("is-leaving"), SWAP_MS);
+      };
+
+      /** Cells hidden by a breakpoint are not part of the board right now. */
+      const visibleCells = () =>
+        cells.reduce<number[]>((indices, cell, index) => {
+          if (cell.offsetParent !== null) indices.push(index);
+          return indices;
+        }, []);
+
+      const shuffle = (values: number[]) => {
+        for (let i = values.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [values[i], values[j]] = [values[j], values[i]];
+        }
+        return values;
+      };
+
+      let timer = 0;
+      let running = false;
+      let entered = false;
+
+      /**
+       * Cells arrive from below, in order, the first time the board is reached.
+       * Under reduced motion they are simply marked as arrived, so the board is
+       * present without anything having moved.
+       */
+      const enter = () => {
+        if (entered) return;
+        entered = true;
+
+        const markAll = () => {
+          for (const cell of cells) cell.classList.add("is-in");
+        };
+
+        if (reducedMotion.matches) {
+          markAll();
+          return;
+        }
+
+        const order = visibleCells();
+        order.forEach((cellIndex, step) => {
+          window.setTimeout(
+            () => cells[cellIndex].classList.add("is-in"),
+            step * ENTER_STAGGER_MS,
+          );
+        });
+        // Cells the current breakpoint hides take no part in the entrance, but
+        // must not be left blank if the viewport later widens onto them.
+        window.setTimeout(markAll, order.length * ENTER_STAGGER_MS);
+      };
+
+      const pass = () => {
+        const order = shuffle(visibleCells());
+        order.forEach((cellIndex, step) => {
+          window.setTimeout(() => running && swap(cellIndex), step * STAGGER_MS);
+        });
+        timer = window.setTimeout(pass, order.length * STAGGER_MS + PAUSE_MS);
+      };
+
+      const start = () => {
+        if (running || reducedMotion.matches) return;
+        running = true;
+        if (ready) {
+          timer = window.setTimeout(pass, PAUSE_MS);
+          return;
+        }
+        // Still fetching. `running` is already set, so a stop() in the
+        // meantime is seen here and the loop never starts.
+        preloaded.then(() => {
+          ready = true;
+          if (running) timer = window.setTimeout(pass, PAUSE_MS);
+        });
+      };
+
+      const stop = () => {
+        running = false;
+        window.clearTimeout(timer);
+      };
+
+      // Off screen the board is a stack of transitions nobody is watching, and
+      // a background tab is worse: the timers keep firing into a page that is
+      // not being painted.
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) {
+                stop();
+                continue;
+              }
+              enter();
+              start();
+            }
+          },
+          { threshold: 0.2 },
+        ).observe(board);
+      } else {
+        enter();
+        start();
+      }
+
+      document.addEventListener("visibilitychange", () => {
+        document.hidden ? stop() : entered && start();
+      });
+
+      reducedMotion.addEventListener("change", () => {
+        if (reducedMotion.matches) stop();
+      });
+    }
+  }
+</script>
+
+<style>
+  .brands {
+    position: relative;
+    padding: var(--section-heading-space) var(--grid-margin)
+      clamp(56px, 5.8vw, 84px);
+  }
+
+  /* The rules between cells are the board showing through the gaps rather than
+     borders on the cells, so no two cells can double a line. The block padding
+     draws the board's own top and bottom edges; its left and right are the
+     page's vertical hairlines, which already land there. */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(var(--columns, 4), minmax(0, 1fr));
+    gap: var(--border-hairline-width);
+    padding-block: var(--border-hairline-width);
+    background-color: var(--border-hairline);
+  }
+
+  .cell {
+    position: relative;
+    aspect-ratio: 1;
+    background-color: var(--surface-page);
+    transition: background-color var(--transition-hover);
+  }
+
+  .cell:hover {
+    background-color: color-mix(
+      in srgb,
+      var(--color-paper) 5%,
+      var(--surface-page)
+    );
+  }
+
+  /* Colour comes back under the pointer. The grey is the board's resting
+     treatment, not the logo's own, so pointing at a mark is what asks to see
+     it as its owner made it — and the cell's tint above already says which one
+     is being asked about.
+
+     Multiplied by `--logo-invert` rather than simply zeroed, and that is the
+     whole subtlety: an inverted mark is being shown with its channels flipped,
+     so its colours are already wrong and lifting the grey would reveal them
+     rather than the real ones. The factor is 0 for an ordinary logo, which
+     clears the grey, and 1 for an inverted one, which leaves it exactly as it
+     was. A mark that cannot honestly show its colours does not pretend to.
+
+     No duration of its own: `filter` is already transitioned here at 520ms,
+     which is the same unhurried lift the project stills use coming out of
+     their halftone. */
+  .cell:hover .cell__logo {
+    --logo-grey: calc(var(--logo-grayscale, 0) * var(--logo-invert, 0));
+  }
+
+  /* One layer showing, one waiting below it. Both are painted as background
+     images so a tinted logo and a plain one are the same element and a swap
+     never has to change what kind of node it is holding. */
+  .cell__logo {
+    /* How grey the mark is actually drawn. `--logo-grayscale` is the editor's
+       setting and arrives inline on this element, which no rule can outrank —
+       so the filter reads this instead, and the hover below has something it
+       can win against. At rest the two are the same number. */
+    --logo-grey: var(--logo-grayscale, 0);
+
+    --swap-duration: 520ms;
+    --swap-travel: 14px;
+    /* Enough to soften the edges of a mark on its way in and out without
+       smearing it into a smudge. */
+    --swap-blur: 3px;
+
+    position: absolute;
+    /* 80% of the cell, centred: the box the Figma logos are placed inside. */
+    inset: 10%;
+    background-image: var(--logo);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    /* Grayscale first, so inverting a coloured mark flips its tone rather
+       than its hue. Blur is the only part of this chain that moves: the two
+       colour filters belong to the logo, not to the swap. */
+    filter: grayscale(var(--logo-grey, 0)) invert(var(--logo-invert, 0))
+      blur(var(--swap-blur));
+    opacity: 0;
+    /* How big a logo sits in its cell is content, so it rides the independent
+       `scale` property and stays out of the transitioned transform. Inside it,
+       a swap between two logos at different scales would animate the
+       difference and read as a zoom. Only the travel is motion. */
+    scale: var(--logo-scale, 1);
+    transform: translateY(var(--swap-travel));
+    transition:
+      opacity var(--swap-duration) var(--ease-out-strong),
+      transform var(--swap-duration) var(--ease-out-strong),
+      filter var(--swap-duration) var(--ease-out-strong);
+  }
+
+  /* A tint replaces the logo's own colours, so the artwork becomes a mask and
+     the colour is painted through it. */
+  .cell__logo[data-tinted] {
+    background-image: none;
+    background-color: var(--logo-tint);
+    mask-image: var(--logo);
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+  }
+
+  /* At rest: in place, sharp. The leaving state needs no filter of its own —
+     dropping `is-current` returns it to the blurred base rule. */
+  .cell__logo.is-current {
+    opacity: var(--logo-opacity, 1);
+    filter: grayscale(var(--logo-grey, 0)) invert(var(--logo-invert, 0))
+      blur(0);
+    transform: translateY(0);
+  }
+
+  .cell__logo.is-leaving {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--swap-travel)));
+  }
+
+  /* The board arrives the way it churns: each cell's logo rises into place from
+     below, one after the next, so the entrance and the swap are the same
+     gesture — the entrance is literally the incoming half of a swap.
+
+     Only the logos move. A cell keeps its own opaque background the whole
+     time, because the rules are the board showing through the gaps: fading a
+     cell would fade what is hiding the board, and eight half-transparent cells
+     over a hairline-coloured board is a grey slab. The board is black
+     with a grid ruled on it from the first frame, and fills with logos.
+
+     The stagger is timed in the script rather than set as a transition-delay,
+     because this rule is the same one every later swap uses — a delay left on
+     it would still be there an hour into the page's life. */
+  :global(.js) .cell:not(.is-in) .cell__logo.is-current {
+    opacity: 0;
+    filter: grayscale(var(--logo-grey, 0)) invert(var(--logo-invert, 0))
+      blur(var(--swap-blur));
+    transform: translateY(var(--swap-travel));
+  }
+
+  /* The swap loop does not run at all under reduced motion, so the board is
+     left as a still wall of logos. */
+  @media (prefers-reduced-motion: reduce) {
+    .cell__logo {
+      transition: none;
+    }
+
+    /* The entrance is skipped outright here: the script marks every cell as
+       arrived at once, so the board is simply present. */
+    :global(.js) .cell:not(.is-in) .cell__logo.is-current {
+      filter: grayscale(var(--logo-grey, 0)) invert(var(--logo-invert, 0))
+        blur(0);
+      transform: none;
+    }
+  }
+
+  .brands__empty {
+    margin: 0;
+    font-size: var(--text-b2);
+    color: var(--ink-muted);
+  }
+
+  /* Columns come off in whole rows, and the cells past the end of the board
+     are hidden rather than left to ragged the last row. */
+  @media (max-width: 699px) {
+    .board {
+      --columns: 3;
+    }
+
+    .cell:nth-child(n + 7) {
+      display: none;
+    }
+  }
+</style>

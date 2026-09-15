@@ -1,0 +1,488 @@
+{
+  "siteSettings": {
+    "siteTitle": "Riyo Productions",
+    "navigation": {
+      "wordmark": "Riyo Productions",
+      "links": [
+        {
+          "label": "Work",
+          "href": "/work",
+          "variant": "white",
+          "arrow": false,
+          "external": false
+        },
+        {
+          "label": "About",
+          "href": "/about",
+          "variant": "white",
+          "arrow": false,
+          "external": false
+        },
+        {
+          "label": "Contact us",
+          "href": "#contact",
+          "variant": "green",
+          "arrow": true,
+          "external": false
+        }
+      ]
+    },
+    "mission": "Riyo Productions is a post-production studio for brands, artists, and creators built by people who live inside the creator economy, not agencies studying it from the outside. The work is the pitch. When clients need the story and strategy behind it too, that's where we go next.",
+    "aboutSection": {
+      "statement": "Riyo Productions is a post-production studio for brands, artists, and creators built by people who live inside the creator economy, not agencies studying it from the outside. The work is the pitch. When clients need the story and strategy behind it too, that's where we go next.",
+      "callToActionLabel": "More about us",
+      "callToActionHref": "/about",
+      "testimonials": [
+        {
+          "name": "Jadden Picardal",
+          "role": "Creative Director, ACME",
+          "quote": "For years, our launch films struggled to showcase the work and attract the right clients. Within just 30 days of the new cut going live with Riyo, we generated $100k in pipeline.",
+          "portrait": "https://randomuser.me/api/portraits/women/68.jpg",
+          "portraitAlt": "Jadden Picardal"
+        },
+        {
+          "name": "Mara Okafor",
+          "role": "Head of Content, Northbeam",
+          "quote": "Riyo turned a messy week of raw footage into a campaign we ran for a full quarter. The turnaround was faster than our in-house team and the edit held up on every platform.",
+          "portrait": "https://randomuser.me/api/portraits/men/32.jpg",
+          "portraitAlt": "Mara Okafor"
+        },
+        {
+          "name": "Elena Ruiz",
+          "role": "Artist Manager, Sable Records",
+          "quote": "They cut the visualiser, the trailer, and thirty shorts from the same session, and every one of them sounded like the artist. That is the part nobody else gets right.",
+          "portrait": "https://randomuser.me/api/portraits/women/44.jpg",
+          "portraitAlt": "Elena Ruiz"
+        }
+      ]
+    },
+    "contactEmail": "work@riyoproductions.com",
+    "instagramUrl": "https://www.instagram.com/riyoproductions/",
+    "linkedinUrl": "https://www.linkedin.com/company/riyoproductions",
+    "heroVideo": "videos/hero/hero-edit-website-v1.mp4",
+    "servicesSection": {
+      "heading": "Services"
+    }
+  },
+  "featuredWork": [
+    "gorillaz-shes-my-collar-2",
+    "valorant-game-changers-championship",
+    "billie-eilish-birds-of-a-feather",
+    "valorant-lyric-video-1",
+    "le-sserafim-crazy",
+    "lunar-new-year",
+    "kanye-west-estelle-american-boy",
+    "doechii-denial-is-a-river",
+    "duolingo-1"
+  ],
+  "selectedProjects": {
+    "heading": "Selected projects",
+    "callToActionLabel": "See all works",
+    "callToActionHref": "/work",
+    "projects": [
+      {
+        "slug": "duolingo-1",
+        "subtitle": "Motion graphics for Duolingo brand content.",
+        "projectPageUrl": "/work/duolingo-1",
+        "metrics": [
+          {
+            "value": "+ 28%",
+            "label": "conversion rate from reels"
+          }
+        ]
+      },
+      {
+        "slug": "dj-mandy",
+        "subtitle": "Motion graphics package for DJ Mandy",
+        "projectPageUrl": "/work/dj-mandy",
+        "metrics": [
+          {
+            "value": "+ 3.1M",
+            "label": "views across the campaign"
+          }
+        ]
+      },
+      {
+        "slug": "amazon-audible",
+        "subtitle": "Motion graphics for Amazon Audible campaign",
+        "projectPageUrl": "/work/amazon-audible",
+        "metrics": [
+          {
+            "value": "+ 42%",
+            "label": "watch time on paid social"
+          }
+        ]
+      },
+      {
+        "slug": "valorant-lyric-video-1",
+        "subtitle": "Animated lyric video for Valorant",
+        "projectPageUrl": "/work/valorant-lyric-video-1",
+        "metrics": [
+          {
+            "value": "+ 1.8M",
+            "label": "plays in the first week"
+          }
+        ]
+      }
+    ]
+  },
+  "clients": [
+    {
+      "name": "Wendy's",
+      "logo": "logo/client-brand-pngs/wendys-logo.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 105,
+        "invert": false
+      }
+    },
+    {
+      "name": "Valorant",
+      "logo": "logo/client-brand-pngs/valorant-logo.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 100,
+        "invert": false
+      }
+    },
+    {
+      "name": "Notion",
+      "logo": "logo/client-brand-pngs/notion.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 87,
+        "invert": false
+      }
+    },
+    {
+      "name": "Handshake",
+      "logo": "logo/client-brand-pngs/handshake-logo.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 100,
+        "invert": true
+      }
+    },
+    {
+      "name": "Google",
+      "logo": "logo/client-brand-pngs/google_2015_logo.svg.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 100,
+        "invert": false
+      }
+    },
+    {
+      "name": "Fortnite",
+      "logo": "logo/client-brand-pngs/fornite-logo-png.webp",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 110,
+        "invert": true
+      }
+    },
+    {
+      "name": "Duolingo",
+      "logo": "logo/client-brand-pngs/duolingo.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 85,
+        "invert": false
+      }
+    },
+    {
+      "name": "Athletes Unlimited Softball League",
+      "logo": "logo/client-brand-pngs/ausl-horizontal-black-orange.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 110,
+        "invert": true
+      }
+    },
+    {
+      "name": "Audible",
+      "logo": "logo/client-brand-pngs/audible.png",
+      "logoDisplay": {
+        "grayscale": true,
+        "opacity": 70,
+        "scale": 122,
+        "invert": false
+      }
+    }
+  ],
+  "services": [
+    {
+      "title": "Motion Graphics",
+      "description": "Animated brand packages, lyric videos, and broadcast graphics.",
+      "cover": "videos/motion-graphics/wendys-mg-2.mp4"
+    },
+    {
+      "title": "Mixed Media",
+      "description": "Live action, animation, and design combined into a single edit.",
+      "cover": "videos/mixed-media/twice-mm.mp4"
+    },
+    {
+      "title": "VFX & 3D",
+      "description": "Compositing, 3D animation, and effects work for music and brand content.",
+      "cover": "videos/VFX-3D/shes-my-collar-1.mp4"
+    },
+    {
+      "title": "Video Editing",
+      "description": "Short-form and long-form edits built for social and campaign delivery.",
+      "cover": "videos/motion-graphics/valorant-mg-3.mp4"
+    }
+  ],
+  "projects": [
+    {
+      "slug": "wendys-commercial",
+      "title": "Wendy's - Commercial",
+      "client": "Wendy's",
+      "category": "motion-graphics",
+      "description": "Motion graphics package for Wendy's brand campaign.",
+      "video": "videos/motion-graphics/wendys-mg-2.mp4"
+    },
+    {
+      "slug": "wendys-commercial-ufo-fight",
+      "title": "Wendy's - Commercial",
+      "client": "Wendy's",
+      "category": "motion-graphics",
+      "description": "Animated UFO fight sequence for Wendy's brand activation.",
+      "video": "videos/motion-graphics/wendys-mg-1-ufo-fight.mp4"
+    },
+    {
+      "slug": "valorant-game-changers-championship",
+      "title": "Valorant - Game Changers Championship",
+      "client": "Valorant",
+      "category": "motion-graphics",
+      "description": "Championship motion graphics package for Valorant Game Changers.",
+      "video": "videos/motion-graphics/valorant-mg-3.mp4"
+    },
+    {
+      "slug": "valorant-lyric-video-2",
+      "title": "Valorant - Lyric Video",
+      "client": "Valorant",
+      "category": "motion-graphics",
+      "description": "Animated lyric video for Valorant.",
+      "video": "videos/motion-graphics/valorant-mg-2.mp4"
+    },
+    {
+      "slug": "valorant-lyric-video-1",
+      "title": "Valorant - Lyric Video",
+      "client": "Valorant",
+      "category": "motion-graphics",
+      "description": "Animated lyric video for Valorant.",
+      "video": "videos/motion-graphics/valorant-mg-1.mp4"
+    },
+    {
+      "slug": "contemporary",
+      "title": "Contemporary",
+      "category": "motion-graphics",
+      "description": "UI-inspired space and shape motion exploration.",
+      "video": "videos/motion-graphics/ui-space-shape-mg.mp4"
+    },
+    {
+      "slug": "9-records-9-designs-p2",
+      "title": "9 Records 9 Designs P2",
+      "category": "motion-graphics",
+      "description": "Part two of the 9 Records 9 Designs motion series.",
+      "video": "videos/motion-graphics/record-mg-2.mp4"
+    },
+    {
+      "slug": "9-records-9-designs-p1",
+      "title": "9 Records 9 Designs P1",
+      "category": "motion-graphics",
+      "description": "Part one of the 9 Records 9 Designs motion series.",
+      "video": "videos/motion-graphics/record-mg-1.mp4"
+    },
+    {
+      "slug": "9-records-9-designs-p3",
+      "title": "9 Records 9 Designs P3",
+      "category": "motion-graphics",
+      "description": "Part three of the 9 Records 9 Designs motion series.",
+      "video": "videos/motion-graphics/paper-disk-mg.mp4"
+    },
+    {
+      "slug": "lunar-new-year",
+      "title": "Lunar New Year",
+      "category": "motion-graphics",
+      "description": "Celebratory motion graphics piece for Lunar New Year.",
+      "video": "videos/featured/lny-mg.mp4"
+    },
+    {
+      "slug": "houston-true-love-studios-exhibition",
+      "title": "Houston True Love Studios Exhibition",
+      "category": "motion-graphics",
+      "description": "Motion piece created for the True Love Studios exhibition in Houston.",
+      "video": "videos/motion-graphics/eye-heart-mg-1.mp4"
+    },
+    {
+      "slug": "duolingo-2",
+      "title": "Duolingo",
+      "client": "Duolingo",
+      "category": "motion-graphics",
+      "description": "Motion graphics for Duolingo brand content.",
+      "video": "videos/motion-graphics/duo-mg-2.mp4"
+    },
+    {
+      "slug": "duolingo-1",
+      "title": "Duolingo",
+      "client": "Duolingo",
+      "category": "motion-graphics",
+      "description": "Motion graphics for Duolingo brand content.",
+      "video": "videos/featured/duo-mg-1.mp4"
+    },
+    {
+      "slug": "dj-mandy",
+      "title": "DJ Mandy",
+      "client": "DJ Mandy",
+      "category": "motion-graphics",
+      "description": "Motion graphics package for DJ Mandy.",
+      "video": "videos/motion-graphics/dj-mandy-mg-1.mp4"
+    },
+    {
+      "slug": "raising-canes",
+      "title": "Raising Cane's",
+      "client": "Raising Cane's",
+      "category": "motion-graphics",
+      "description": "Motion graphics for Raising Cane's brand campaign.",
+      "video": "videos/motion-graphics/canes-mg-1.mp4"
+    },
+    {
+      "slug": "amazon-audible",
+      "title": "Amazon Audible",
+      "client": "Audible",
+      "category": "motion-graphics",
+      "description": "Motion graphics for Amazon Audible campaign.",
+      "video": "videos/motion-graphics/audible-mg-1.mp4"
+    },
+    {
+      "slug": "twice-strategy",
+      "title": "Twice - Strategy",
+      "category": "mixed-media",
+      "description": "Mixed media edit for Twice - Strategy.",
+      "video": "videos/mixed-media/twice-mm.mp4"
+    },
+    {
+      "slug": "rose-number-one-girl",
+      "title": "Rosé - Number One Girl",
+      "category": "mixed-media",
+      "description": "Mixed media edit for Rosé - Number One Girl.",
+      "video": "videos/mixed-media/rose-mm.mp4"
+    },
+    {
+      "slug": "newjeans-eta",
+      "title": "NewJeans - ETA",
+      "category": "mixed-media",
+      "description": "Mixed media edit for NewJeans - ETA.",
+      "video": "videos/mixed-media/eta-mm.mp4"
+    },
+    {
+      "slug": "doechii-denial-is-a-river",
+      "title": "Doechii - Denial Is a River",
+      "category": "mixed-media",
+      "description": "Mixed media edit for Doechii - Denial Is a River.",
+      "video": "videos/mixed-media/doechii-mm.mp4"
+    },
+    {
+      "slug": "billie-eilish-birds-of-a-feather",
+      "title": "Billie Eilish - Birds of a Feather",
+      "category": "mixed-media",
+      "description": "Mixed media edit for Billie Eilish - Birds of a Feather.",
+      "video": "videos/featured/bof-mm.mp4"
+    },
+    {
+      "slug": "athletes-unlimited-softball-league",
+      "title": "Athletes Unlimited Softball League",
+      "client": "Athletes Unlimited Softball League",
+      "category": "mixed-media",
+      "description": "Mixed media content for Athletes Unlimited Softball League.",
+      "video": "videos/mixed-media/ausl-mm.mp4"
+    },
+    {
+      "slug": "bruno-mars-rose-apt",
+      "title": "Bruno Mars & Rosé - APT.",
+      "category": "mixed-media",
+      "description": "Mixed media edit for Bruno Mars & Rosé - APT.",
+      "video": "videos/mixed-media/apt-mm.mp4"
+    },
+    {
+      "slug": "beabadoobee-apple-cider",
+      "title": "beabadoobee - Apple Cider",
+      "category": "mixed-media",
+      "description": "Mixed media edit for beabadoobee - Apple Cider.",
+      "video": "videos/mixed-media/apple-cider-mm-1.mp4"
+    },
+    {
+      "slug": "gorillaz-shes-my-collar-1",
+      "title": "Gorillaz - She's My Collar",
+      "category": "vfx-3d",
+      "description": "VFX and 3D compositing for Gorillaz - She's My Collar.",
+      "video": "videos/VFX-3D/shes-my-collar-1.mp4"
+    },
+    {
+      "slug": "gorillaz-shes-my-collar-2",
+      "title": "Gorillaz - She's My Collar",
+      "category": "vfx-3d",
+      "description": "VFX and 3D compositing for Gorillaz - She's My Collar.",
+      "video": "videos/featured/shes-my-caller-2.mp4"
+    },
+    {
+      "slug": "dare",
+      "title": "Dare",
+      "category": "vfx-3d",
+      "description": "VFX and 3D work.",
+      "video": "videos/VFX-3D/dare-1.mp4"
+    },
+    {
+      "slug": "kanye-west-estelle-american-boy",
+      "title": "Kanye West & Estelle - American Boy",
+      "category": "vfx-3d",
+      "description": "VFX edit for Kanye West & Estelle - American Boy.",
+      "video": "videos/featured/american-boy-edit.mp4"
+    },
+    {
+      "slug": "nokia",
+      "title": "Nokia",
+      "client": "Nokia",
+      "category": "vfx-3d",
+      "description": "3D and VFX work for Nokia.",
+      "video": "videos/VFX-3D/062525-nokia.mp4"
+    },
+    {
+      "slug": "2025-recap",
+      "title": "2025 Recap",
+      "category": "vfx-3d",
+      "description": "Year-in-review VFX and 3D compilation.",
+      "video": "videos/VFX-3D/2025-recap.mp4"
+    },
+    {
+      "slug": "le-sserafim-crazy",
+      "title": "Le Sserafim - Crazy",
+      "category": "vfx-3d",
+      "description": "VFX and 3D work for Le Sserafim - Crazy.",
+      "video": "videos/featured/crazy.mp4"
+    }
+  ],
+  "brandsClients": {
+    "heading": "We've worked with",
+    "clients": [
+      "Valorant",
+      "Notion",
+      "Google",
+      "Duolingo",
+      "Wendy's",
+      "Audible",
+      "Handshake",
+      "Fortnite",
+      "Athletes Unlimited Softball League"
+    ]
+  }
+}

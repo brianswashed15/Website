@@ -1,0 +1,61 @@
+---
+import { Font } from "astro:assets";
+import "../styles/global.css";
+import ColumnGrid from "../components/ui/ColumnGrid.astro";
+import CoordinateCursor from "../components/ui/CoordinateCursor.astro";
+import GrainOverlay from "../components/ui/GrainOverlay.astro";
+import SmoothScroll from "../components/ui/SmoothScroll.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Riyo Productions",
+  description = "Riyo Productions",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="generator" content={Astro.generator} />
+    {/* Scroll reveals hide their copy until it is revealed, which is only safe
+        while a script is running to reveal it. Setting the flag here, inline
+        and before the body parses, means the hidden state is applied in the
+        same frame as the text rather than flashing it first. */}
+    <script is:inline>
+      document.documentElement.classList.add("js");
+    </script>
+    <Font cssVariable="--font-inter-tight" preload />
+    <Font cssVariable="--font-jetbrains-mono" />
+    {
+      import.meta.env.DEV && (
+        <script
+          is:inline
+          src="//unpkg.com/react-grab/dist/index.global.js"
+          crossorigin="anonymous"
+        />
+      )
+    }
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+    <SmoothScroll />
+    {/* Here rather than per page: the replaced cursor is the site's, not one
+        route's, and a page that forgot to include it would drop back to the
+        system arrow halfway through a visit. Its `gridSelector` stands the
+        crosshair down over the featured grid and simply finds nothing on the
+        routes that have no such grid, which is the behaviour those routes
+        want anyway. */}
+    <CoordinateCursor />
+    <GrainOverlay />
+    <ColumnGrid />
+  </body>
+</html>

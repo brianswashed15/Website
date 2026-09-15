@@ -1,0 +1,106 @@
+/**
+ * Riyo Productions design tokens.
+ *
+ * Brand colors are stored as raw channel triplets so any token can be used at
+ * any opacity through `rgb(var(--color-x-rgb) / <alpha>)`. New shades come from
+ * changing the alpha of an existing brand color, never from a new hex value.
+ * See design.md.
+ */
+:root {
+  /* Brand */
+  --color-base-rgb: 10 10 10; /* #0A0A0A near-black */
+  --color-paper-rgb: 245 244 240; /* #F5F4F0 off-white */
+  --color-accent-rgb: 200 255 61; /* #C8FF3D acid green */
+  --color-signal-rgb: 255 59 31; /* #FF3B1F signal red/orange */
+  --color-magenta-rgb: 255 46 107; /* #FF2E6B hot pink */
+  --color-cobalt-rgb: 30 90 255; /* #1E5AFF electric blue */
+
+  --color-base: rgb(var(--color-base-rgb));
+  --color-paper: rgb(var(--color-paper-rgb));
+  --color-accent: rgb(var(--color-accent-rgb));
+  --color-signal: rgb(var(--color-signal-rgb));
+  --color-magenta: rgb(var(--color-magenta-rgb));
+  --color-cobalt: rgb(var(--color-cobalt-rgb));
+
+  /* Surfaces */
+  --surface-page: var(--color-base);
+  --border-hairline: rgb(var(--color-paper-rgb) / 0.19);
+  /* One stroke weight for every hairline on the site: buttons, section rules. */
+  --border-hairline-width: 1px;
+
+  /* Text emphasis. One color, four opacities. Never a second grey. */
+  --ink-primary: var(--color-paper);
+  --ink-secondary: rgb(var(--color-paper-rgb) / 0.7);
+  --ink-muted: rgb(var(--color-paper-rgb) / 0.5);
+  --ink-subtle: rgb(var(--color-paper-rgb) / 0.35);
+
+  /* Button variants */
+  --button-green-surface: rgb(var(--color-accent-rgb) / 0.2);
+  --button-green-surface-hover: rgb(var(--color-accent-rgb) / 0.4);
+  --button-green-text: var(--color-accent);
+  --button-white-surface: rgb(var(--color-paper-rgb) / 0);
+  --button-white-surface-hover: rgb(var(--color-paper-rgb) / 0.2);
+  --button-white-text: var(--color-paper);
+
+  /* Typography. Inter Tight and JetBrains Mono are self-hosted through Astro's
+     fonts API, which defines --font-inter-tight and --font-jetbrains-mono; see
+     astro.config.mjs. Mono is for metadata: attributions, counters, labels. */
+  --font-heading: var(--font-inter-tight), system-ui, sans-serif;
+  --font-body: var(--font-inter-tight), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular",
+    Menlo, Consolas, monospace;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+
+  /* Type scale. h2, h3, and b3 are the Figma text styles; the rest continue the
+     same 1.25 ratio and 4px body ladder. Sizes are the value at the 1440px
+     design width, and each step scales with the viewport down to a floor.
+     Figma's "Auto" line height resolves to 100%. */
+  --text-h1: clamp(32px, 3.333vw, 48px); /* 48 */
+  --text-h2: clamp(28px, 2.778vw, 40px); /* h2 · 40 */
+  --text-h3: clamp(20px, 2.222vw, 32px); /* h3 · 32 */
+  --text-h4: clamp(18px, 1.667vw, 24px); /* 24 */
+  --text-b1: clamp(18px, 1.667vw, 24px); /* 24 */
+  --text-b2: clamp(17px, 1.389vw, 20px); /* 20 */
+  --text-b3: 16px; /* b3 · 16 — the floor of the scale, never scaled down */
+
+  --leading-heading: 1;
+  --leading-body: 1.5;
+
+  /* Kerning tightens as type grows. */
+  --tracking-display: -0.05em; /* h1 */
+  --tracking-heading: -0.04em; /* h2, h3 — the -4% in the Figma style */
+  --tracking-tight: -0.02em; /* h4, b1 */
+  --tracking-body: 0; /* b2, b3 */
+
+  /* Layout. Mirrors the 12-column development grid in global.css. */
+  --grid-margin: min(64px, 4.444vw);
+  --grid-gutter: min(16px, 1.111vw);
+  --navbar-height: 60px;
+
+  /* The band a section heading sits in: the air a section opens with, and the
+     gap from the heading down to the first thing under it. One rhythm for
+     every section, so two of them in a row start the same way. Applied by
+     src/components/ui/SectionHeading.astro and the sections that carry it. */
+  --section-heading-space: clamp(20px, 2.1vw, 30px);
+  --section-heading-gap: clamp(24px, 2.6vw, 38px);
+
+  /* Motion */
+  --transition-hover: 150ms ease;
+  /* Slower than a hover: a scroll reveal is read in passing, not aimed at. */
+  --transition-reveal: 600ms ease;
+  /* Shared snap curve for the featured-grid cursor label: fast start, long
+     soft settle. */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Text entrances. One curve and one length for every word that arrives on
+     the page, so a heading and a project title read as the same gesture.
+     Short, because a reveal is read on the way past: the curve front-loads
+     almost all of its travel, so the words are legible well before the
+     transition formally ends, and a stagger on top of a longer one would
+     leave the last item of a group arriving late. */
+  --transition-text: 400ms var(--ease-out-strong);
+  /* The step between two staggered pieces of an entrance. Long enough to read
+     as a sequence, short enough that the last piece is not late. */
+  --stagger-text: 70ms;
+}

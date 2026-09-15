@@ -1,0 +1,23 @@
+---
+import Footer from "../components/sections/Footer.astro";
+import Navbar from "../components/sections/Navbar.astro";
+import SelectedProjects from "../components/sections/SelectedProjects.astro";
+import SectionRule from "../components/ui/SectionRule.astro";
+import Layout from "../layouts/Layout.astro";
+import { getProjects } from "../lib/sanity";
+
+const projects = await getProjects();
+---
+
+<Layout title="Work | Riyo Productions">
+  <Navbar />
+  <main>
+    {/* The section heading under this one is an `h2`, so the page needs an
+        `h1` to hang off — but the design does not draw one. `visually-hidden`
+        is the layout's own answer to exactly that (see global.css). */}
+    <h1 class="visually-hidden">Work</h1>
+    <SelectedProjects content={{ heading: "All work", projects }} layout="grid" />
+  </main>
+  <SectionRule />
+  <Footer />
+</Layout>

@@ -1,0 +1,500 @@
+---
+/**
+ * The homepage's closing call to action, directly under Services. The heading
+ * and button sit in the second column, matching the grid the rest of the page
+ * uses; the "Riyo" wordmark on the right runs the halftone shader treatment
+ * from the wordmark page in the riyo-web reference project, textured from the
+ * real wordmark asset (public/Riyo.svg).
+ */
+import Button from "../ui/Button.astro";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+import { getContactSection, type ContactSection } from "../../lib/sanity";
+
+interface Props {
+  content?: ContactSection;
+}
+
+const { content = await getContactSection() } = Astro.props;
+
+/**
+ * public/Riyo.svg's own viewBox, plus where the wordmark sits inside it. The
+ * baseline is the flat bottom of the R and the i, read off their path data;
+ * the o overshoots it by a third of a unit as round letters do, and the y's
+ * descender runs on to the bottom of the box. Everything below that baseline
+ * is what the mark has to be dropped by for the button beside it to line up
+ * with the letters rather than with the descender.
+ */
+const WORDMARK = { width: 54, height: 31, baseline: 24.2031 };
+const wordmarkDrop = `${(
+  ((WORDMARK.height - WORDMARK.baseline) / WORDMARK.height) *
+  100
+).toFixed(3)}%`;
+
+/**
+ * The heading arrives a word at a time, so every word needs its own box and
+ * its own place in the queue — both decided here rather than on the client, so
+ * the spans ship in the HTML and the reveal only has to add one class. Same
+ * treatment the mission statement gets in AboutMission.astro.
+ *
+ * The heading is written in Sanity, so its length is a content decision: a
+ * fixed step that reads well over five words drags badly over twenty. Sizing
+ * the step to the word count keeps the wave inside the same window whatever
+ * gets typed, and the ceiling stops a very short heading arriving at once.
+ */
+const STAGGER_WINDOW_MS = 900;
+const STAGGER_MAX_MS = 40;
+
+let wordIndex = -1;
+const headingChunks = content.heading
+  .split(/(\s+)/)
+  .filter(Boolean)
+  .map((chunk) => {
+    if (/^\s+$/.test(chunk)) {
+      return { text: chunk, index: null };
+    }
+    wordIndex += 1;
+    return { text: chunk, index: wordIndex };
+  });
+
+const wordCount = wordIndex + 1;
+const stagger = Math.min(
+  STAGGER_MAX_MS,
+  Math.round(STAGGER_WINDOW_MS / Math.max(wordCount, 1)),
+);
+
+/**
+ * The last word takes the colour wipe. Targeting the closing word rather than
+ * a hardcoded "motion" keeps it working against whatever the Studio holds —
+ * the emphasis of a call to action lands on its final word either way.
+ */
+const lastWordIndex = wordCount - 1;
+---
+
+<section class="contact-cta" aria-labelledby="contact-heading">
+  {/* The split is decoration, so the heading names itself with the flat
+      sentence and the word boxes are hidden from assistive technology rather
+      than read out as fragments. */}
+  <div class="contact-cta__text" data-reveal style={`--stagger: ${stagger}ms`}>
+    <h2 id="contact-heading" aria-label={content.heading}>
+      <span aria-hidden="true">
+        {
+          headingChunks.map((chunk) => {
+            if (chunk.index === null) {
+              return chunk.text;
+            }
+
+            const isWipe = chunk.index === lastWordIndex;
+
+            return (
+              <span
+                class:list={["word", { "word--wipe": isWipe }]}
+                style={`--i: ${chunk.index}`}
+              >
+                {chunk.text}
+                {/* Three copies of the same word stacked over the base one,
+                    each opening its clip left to right in turn. Hidden from
+                    assistive technology already, by the aria-hidden above. */}
+                {isWipe && (
+                  <>
+                    <span class="word__ink word__ink--cobalt">{chunk.text}</span>
+                    <span class="word__ink word__ink--magenta">
+                      {chunk.text}
+                    </span>
+                    <span class="word__ink word__ink--accent">{chunk.text}</span>
+                  </>
+                )}
+              </span>
+            );
+          })
+        }
+      </span>
+    </h2>
+    <Button href={content.callToActionHref} variant="green">
+      {content.callToActionLabel}
+    </Button>
+  </div>
+  <div
+    class="contact-cta__wordmark"
+    data-contact-wordmark
+    aria-hidden="true"
+    style={`--wordmark-aspect: ${WORDMARK.width} / ${WORDMARK.height}; --wordmark-drop: ${wordmarkDrop};`}
+  >
+  </div>
+  <VerticalEdges />
+</section>
+
+<style>
+  .contact-cta {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--grid-gutter);
+    /* A screenful, so the page's last word gets one undivided. `lvh` rather
+       than `vh` for the same reason the footer takes it: on a phone this is
+       read with the browser's chrome collapsed, and `dvh` would resize the
+       section while the toolbars animate. */
+    min-height: 100vh;
+    min-height: 100lvh;
+    /* The row is placed in the middle of that screenful rather than left to
+       sit under the padding. It does not disturb what is inside it — the
+       heading is still bottom-aligned to the wordmark's baseline; the pair
+       moves together. */
+    align-content: center;
+    padding-inline: var(--grid-margin);
+    /* Heavier underneath than over. Centred between equal padding the block
+       lands on the geometric middle, which reads low — the eye puts the centre
+       of a composition above the middle of its frame. The extra beneath is
+       what lifts it onto that line, and it is also the air the section wanted
+       between its last word and the rule under it. */
+    padding-block: clamp(96px, 10vw, 160px) clamp(160px, 17vw, 280px);
+  }
+
+  .contact-cta__text {
+    grid-column: 2 / span 4;
+    /* Explicit row: without it, grid auto-placement sees this column range
+       overlap the wordmark's (below) and quietly bumps one of them to a
+       second row instead of actually letting them share space. */
+    grid-row: 1;
+    /* Above the wordmark wherever the two overlap — without this, the
+       wordmark would win that overlap simply for coming second in the
+       markup. */
+    position: relative;
+    z-index: 1;
+    /* Bottom-aligned to the row, which is where the wordmark's baseline
+       lands too once it is dropped by its descender — see --wordmark-drop. */
+    align-self: end;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 56px;
+  }
+
+  .contact-cta__text h2 {
+    margin: 0;
+    max-width: 8em;
+    font-size: var(--text-h2);
+    font-weight: var(--weight-medium);
+    line-height: 1.15;
+    color: var(--ink-primary);
+  }
+
+  .word {
+    display: inline-block;
+  }
+
+  /* The hidden starting state is gated behind the `js` class the layout sets,
+     so the copy is never left invisible to a reader whose script never ran —
+     the contract scripts/reveal.ts documents. */
+  :global(.js) .contact-cta__text .word {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(6px);
+  }
+
+  /* The transition lives on the revealed state alone: the entrance happens
+     once, so there is nothing to animate back to. */
+  :global(.js) .contact-cta__text.is-revealed .word {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+    transition:
+      opacity var(--transition-text),
+      transform var(--transition-text),
+      filter var(--transition-text);
+    transition-delay: calc(var(--i, 0) * var(--stagger, 40ms));
+  }
+
+  /* Colour wipe on the closing word. Each ink is a full copy of the word
+     stacked over the base one and revealed by opening its clip from the
+     left; clip-path has no layout effect and is composited, so three
+     stacked copies cost nothing to sweep across. */
+  .word--wipe {
+    position: relative;
+  }
+
+  .word__ink {
+    position: absolute;
+    top: 0;
+    left: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+
+  /* Cobalt goes first and fastest, then magenta a little slower, then the
+     accent, which is the colour the word is left in. Each starts before the
+     one before it has finished, so the three read as a single cascade
+     rather than three separate wipes. */
+  .word__ink--cobalt {
+    color: var(--color-cobalt);
+    --wipe-duration: 240ms;
+    --wipe-offset: 0ms;
+  }
+
+  .word__ink--magenta {
+    color: var(--color-magenta);
+    --wipe-duration: 320ms;
+    --wipe-offset: 150ms;
+  }
+
+  .word__ink--accent {
+    color: var(--color-accent);
+    --wipe-duration: 400ms;
+    --wipe-offset: 320ms;
+  }
+
+  @keyframes word-wipe {
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  /* Waits for the word itself to finish arriving: --i and --stagger are the
+     same ones driving its entrance, and --wipe-settle matches the duration
+     inside --transition-text, so the wipe stays in step with whatever copy
+     the Studio holds. */
+  :global(.js) .contact-cta__text.is-revealed .word__ink {
+    --wipe-settle: 400ms;
+
+    animation: word-wipe var(--wipe-duration) var(--ease-out-strong) forwards;
+    animation-delay: calc(
+      var(--i, 0) * var(--stagger, 40ms) + var(--wipe-settle) +
+        var(--wipe-offset)
+    );
+  }
+
+  /* No script, no reveal — so the word is left in the colour the wipe would
+     have landed on rather than the plain ink it starts from. */
+  :global(html:not(.js)) .word__ink--accent {
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* Gentler, not gone: the copy still resolves into place, it just does not
+     travel or defocus to get there. */
+  @media (prefers-reduced-motion: reduce) {
+    :global(.js) .contact-cta__text .word {
+      transform: none;
+      filter: none;
+    }
+
+    :global(.js) .contact-cta__text.is-revealed .word {
+      transition: opacity 300ms var(--ease-out-strong);
+      transition-delay: 0s;
+    }
+
+    /* The sweep is decoration; the colour it lands on is design. The word
+       arrives already wearing it instead of being painted three times. */
+    :global(.js) .contact-cta__text.is-revealed .word__ink {
+      animation: none;
+    }
+
+    :global(.js) .contact-cta__text.is-revealed .word__ink--accent {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  /* Ends at column 11, leaving the same one column plus one gutter to the
+     right vertical edge that the text is inset from the left one. The box is
+     the mark's own aspect ratio, so the shader's "contain" fit fills it
+     exactly and that inset is the gap the reader actually sees, rather than
+     letterboxing inside a box of some other shape. */
+  .contact-cta__wordmark {
+    grid-column: 5 / 12;
+    grid-row: 1;
+    align-self: end;
+    aspect-ratio: var(--wordmark-aspect);
+    /* Dropped by everything below the baseline, so the row's bottom edge —
+       which the button is aligned to — runs along the bottom of the R, i and
+       o, and only the y's descender hangs past it into the section's
+       padding. */
+    transform: translateY(var(--wordmark-drop));
+    /* Beneath CoordinateCursor's crosshair (z-index: -1), so the lines paint
+       over the mark instead of vanishing under its opaque fill. The heading
+       and button stay above via .contact-cta__text's z-index. */
+    z-index: -2;
+    background: #0b0b0b;
+  }
+
+  .contact-cta__wordmark canvas {
+    display: block;
+  }
+
+  @media (max-width: 899px) {
+    .contact-cta {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Both are pinned to row 1 above so they can share it; stacked, they need
+       their own rows back. */
+    .contact-cta__text {
+      grid-column: 1 / -1;
+      grid-row: auto;
+    }
+
+    .contact-cta__wordmark {
+      grid-column: 1 / -1;
+      grid-row: auto;
+      order: -1;
+      /* Nothing to line a baseline up with once the two are stacked. */
+      transform: none;
+    }
+  }
+</style>
+
+<script>
+  import "../../scripts/reveal";
+</script>
+
+<script>
+  import {
+    ShaderMount,
+    halftoneCmykFragmentShader,
+    getShaderColorFromString,
+    getShaderNoiseTexture,
+    ShaderFitOptions,
+    HalftoneCmykTypes,
+  } from "@paper-design/shaders";
+
+  const container = document.querySelector<HTMLDivElement>(
+    "[data-contact-wordmark]",
+  );
+
+  if (container) {
+    const SVG_URL = "/Riyo.svg";
+    // The source SVG's own viewBox is tiny; rasterizing at that size and
+    // letting the shader scale it up would sample a blurry source. Drawing
+    // the vector into a canvas this wide costs nothing — SVGs draw crisp at
+    // any destination size — and gives the halftone a sharp silhouette to
+    // read its dot radii from.
+    const RASTER_WIDTH = 1400;
+
+    // Discrete random jumps rather than a smooth wave — a real twinkle reads
+    // as a flicker, not a slow breathing pulse. Figures match the wordmark
+    // page's second effect in the riyo-web reference project.
+    const TWINKLE_INTERVAL_MS = 380;
+    const GRID_NOISE = { base: 0.25, amplitude: 0.4, min: 0.15, max: 0.8 };
+    const DOT_SIZE = { base: 0.8, amplitude: 0.08, min: 0.8, max: 0.8 };
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(max, Math.max(min, value));
+
+    // Draws the SVG into a canvas, then recolors it via `source-in` — which
+    // paints only where the existing alpha is already nonzero, so it re-tints
+    // the mark without touching its silhouette. The canvas takes its shape
+    // from the decoded image rather than a hardcoded ratio, so the raster
+    // never disagrees with the asset.
+    async function rasterizeWordmark(): Promise<HTMLImageElement> {
+      const source = new Image();
+      source.src = SVG_URL;
+      await source.decode().catch(() => {});
+
+      const aspect =
+        source.naturalWidth && source.naturalHeight
+          ? source.naturalWidth / source.naturalHeight
+          : 1;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = RASTER_WIDTH;
+      canvas.height = Math.round(RASTER_WIDTH / aspect);
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+      ctx.globalCompositeOperation = "source-in";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const image = new Image();
+      image.src = canvas.toDataURL("image/png");
+      await image.decode().catch(() => {});
+      return image;
+    }
+
+    // getShaderNoiseTexture() hands back an <img> the instant its src is set,
+    // not once it's actually decoded — ShaderMount refuses any texture
+    // uniform that isn't fully loaded yet, so this is awaited the same way as
+    // the rasterized wordmark above.
+    async function loadedNoiseTexture() {
+      const image = getShaderNoiseTexture();
+      if (!image) return undefined;
+      await image.decode().catch(() => {});
+      return image;
+    }
+
+    async function mount() {
+      const [image, noiseTexture] = await Promise.all([
+        rasterizeWordmark(),
+        loadedNoiseTexture(),
+      ]);
+
+      let shader: ShaderMount;
+      try {
+        shader = new ShaderMount(
+          container!,
+          halftoneCmykFragmentShader,
+          {
+            u_image: image,
+            u_noiseTexture: noiseTexture,
+            u_colorBack: getShaderColorFromString("#0b0b0b"),
+            u_colorC: getShaderColorFromString("#00b3ff"),
+            u_colorM: getShaderColorFromString("#fc4f9d"),
+            u_colorY: getShaderColorFromString("#c8ff3d"),
+            u_colorK: getShaderColorFromString("#242424"),
+            u_size: DOT_SIZE.base,
+            u_contrast: 0.65,
+            u_softness: 0,
+            u_grainSize: 0.5,
+            u_grainMixer: 0.2,
+            u_grainOverlay: 0,
+            u_gridNoise: GRID_NOISE.base,
+            u_floodC: 0,
+            u_floodM: 0,
+            u_floodY: 0,
+            u_floodK: 0,
+            u_gainC: 0,
+            u_gainM: 0,
+            u_gainY: 0,
+            u_gainK: 0.11,
+            u_type: HalftoneCmykTypes.ink,
+            // The container is the mark's own aspect ratio, so "contain"
+            // fills it exactly and nothing is cropped or letterboxed.
+            u_fit: ShaderFitOptions.contain,
+            u_scale: 1,
+            u_rotation: 0,
+            u_offsetX: 0,
+            u_offsetY: 0,
+            u_originX: 0.5,
+            u_originY: 1,
+            u_worldWidth: 0,
+            u_worldHeight: 0,
+          },
+          undefined,
+          // Static: the shader has no inherent per-frame animation of its
+          // own, so nothing needs u_time. The twinkle below drives the only
+          // motion, directly through setUniforms.
+          0,
+        );
+      } catch {
+        // WebGL unavailable: the container's own background stands in.
+        return;
+      }
+
+      if (reduced.matches) return;
+
+      setInterval(() => {
+        shader.setUniforms({
+          u_gridNoise: clamp(
+            GRID_NOISE.base + (Math.random() - 0.5) * GRID_NOISE.amplitude,
+            GRID_NOISE.min,
+            GRID_NOISE.max,
+          ),
+          u_size: clamp(
+            DOT_SIZE.base + (Math.random() - 0.5) * DOT_SIZE.amplitude,
+            DOT_SIZE.min,
+            DOT_SIZE.max,
+          ),
+        });
+      }, TWINKLE_INTERVAL_MS);
+    }
+
+    mount();
+  }
+</script>

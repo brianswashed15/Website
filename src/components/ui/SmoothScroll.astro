@@ -1,0 +1,69 @@
+---
+/**
+ * Lenis smooth scrolling.
+ *
+ * Lenis re-implements the wheel on the main thread, which is a real cost: the
+ * scrollbar stops being the compositor's job and joins the grain, the cursor
+ * and the wordmark shader in the frame budget. It is here because the weighted
+ * feel is the point of the page, not because it is free.
+ *
+ * There is deliberately no section snapping. Lenis ships a `Snap` add-on and
+ * this file used to use it in `proximity` mode; even at a narrow threshold it
+ * takes the scroll away from the reader whenever they happen to come to rest
+ * near a section edge, which is the one thing a weighted scroll must not do —
+ * the page stops where it is put. Sections are paced by their own layout and
+ * by the services pin, not by the scroll being corrected after the fact.
+ */
+---
+
+<script>
+  import Lenis from "lenis";
+  import "lenis/dist/lenis.css";
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  /**
+   * Nothing here is comprehension — it is weight and polish on a scrollbar the
+   * reader already knows how to use. Under reduced motion the page keeps the
+   * browser's own scrolling, with no smoothing at all, rather than a gentler
+   * version of it.
+   */
+  if (!reduced.matches) {
+    const lenis = new Lenis({
+      // The one knob worth turning if the float feels wrong: lower is heavier
+      // and slower to settle, higher is closer to native.
+      lerp: 0.1,
+      // Lenis takes anchor links over so `#contact` eases across instead of
+      // jumping, which is the one thing CSS `scroll-behavior` was doing.
+      anchors: true,
+      // Lenis drives its own rAF loop; nothing else needs to pump it.
+      autoRaf: true,
+    });
+
+    /**
+     * Published so the rest of the page can move the scroll through the same
+     * instance that owns it. Lenis drives `window.scrollTo` from its own loop,
+     * so anything calling that directly — or `scroll-behavior: smooth` — is
+     * setting a position Lenis overwrites on the next frame.
+     */
+    window.lenis = lenis;
+
+    /**
+     * The mobile navigation locks the page with `overflow: hidden` on the
+     * body, which stops the browser scrolling but not Lenis — it drives the
+     * window itself, so the page would go on sliding behind the open panel.
+     * Stopping Lenis for as long as the class is set is what actually holds
+     * the page still, and it covers the panel's own inner scrolling too.
+     */
+    const syncNavLock = () => {
+      if (document.body.classList.contains("is-nav-open")) lenis.stop();
+      else lenis.start();
+    };
+
+    syncNavLock();
+    new MutationObserver(syncNavLock).observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
+</script>

@@ -1,0 +1,845 @@
+---
+/**
+ * The last thing on every page, under the call to action: the Riyo monogram
+ * held large at the bottom left corner, with the ways of reaching the studio
+ * stacked to the right of it.
+ *
+ * It is uncovered rather than scrolled to. The footer sits still against the
+ * bottom of the screen while the page slides off it, so the grey comes up from
+ * under the call to action like a layer that was always there — which is also
+ * why it is the grey it is: the same ink as the grid hairlines, the page's own
+ * substrate showing through. See `.footer-reveal` in the stylesheet.
+ *
+ * The two are a flex row aligned to its start, which is what puts the first
+ * line of text level with the top of the mark: one alignment does both jobs,
+ * since the mark is the taller of the two and so sets the row's height. The
+ * mark then finishes the page — the footer has no bottom padding, so its feet
+ * are the last pixels of the document.
+ *
+ * The links are content: the email and the two profile URLs come from
+ * siteSettings, and any of them that the dataset has not been given is left
+ * out rather than rendered as a link to nowhere. Like ContactCta, the content
+ * is a prop with a fetching default, so the three routes that render a footer
+ * do not each have to ask for it.
+ */
+import { getFooterSection, type FooterSection } from "../../lib/sanity";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+
+interface Props {
+  content?: FooterSection;
+}
+
+const { content = await getFooterSection() } = Astro.props;
+
+const links = [
+  content.contactEmail && {
+    label: content.contactEmail,
+    href: `mailto:${content.contactEmail}`,
+    external: false,
+  },
+  content.linkedinUrl && {
+    label: "LinkedIn",
+    href: content.linkedinUrl,
+    external: true,
+  },
+  content.instagramUrl && {
+    label: "Instagram",
+    href: content.instagramUrl,
+    external: true,
+  },
+].filter((link): link is { label: string; href: string; external: boolean } =>
+  Boolean(link),
+);
+---
+
+{/* The window the footer is seen through. It is an ordinary block in flow, so
+    the document reserves exactly the footer's own height for it — the rise
+    below is paint, not layout, and needs no measurement to be kept in step
+    with. */}
+<div class="footer-reveal">
+  <footer class="footer">
+    {/* The mark is painted rather than placed: the asset's own fill is white,
+        and the colour it is drawn in here is a decision the design tokens own,
+        so the file is used as a mask and the token is what fills it. Decorative
+        either way — the copyright line beside it already names the studio in
+        text, so there is nothing here for a reader who cannot see it. */}
+    <span class="footer__logo" aria-hidden="true"></span>
+
+    <div class="footer__meta">
+      {
+        links.map((link) => (
+          <a
+            class="footer__link"
+            href={link.href}
+            data-coord-snap
+            {...(link.external
+              ? { target: "_blank", rel: "noreferrer" }
+              : {})}
+          >
+            {link.label}
+          </a>
+        ))
+      }
+      <p class="footer__copyright">
+        &copy; {new Date().getFullYear()} Riyo Productions
+      </p>
+    </div>
+
+    <VerticalEdges />
+  </footer>
+</div>
+
+<script>
+  /**
+   * How far the footer is lifted inside its window, which is the whole of the
+   * reveal: everything else is the clip in the stylesheet.
+   *
+   * The lift is the page's remaining scroll. The window's bottom edge is the
+   * last pixel of the document, so the distance from it to the bottom of the
+   * screen is exactly what is left to scroll — and lifting the footer by that
+   * much is what parks its feet on the bottom of the screen and keeps them
+   * there. It reaches zero at the end of the page, where the footer is back in
+   * its own box and the clip has nothing left to cut.
+   *
+   * Read every frame rather than cached: the footer's height moves under us as
+   * the brand font swaps in and as the window is resized, and re-reading one
+   * rect costs less than watching for either.
+   *
+   * The other half of the file is the nudge that finishes the reveal the
+   * moment the footer is reached; see `NUDGE_DURATION` below.
+   */
+  const reveal = document.querySelector<HTMLElement>(".footer-reveal");
+  const footer = reveal?.querySelector<HTMLElement>(".footer");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  if (reveal && footer) {
+    /**
+     * The nudge.
+     *
+     * The reveal finishes itself. Once the reader has opened half the footer
+     * the page adds to the movement they already have, and the footer lands
+     * filling the screen without them having to carry it the rest of the way.
+     * Half, because that is the point past which they have plainly chosen to
+     * be here rather than glanced at it on the way somewhere.
+     *
+     * It is a push, not a takeover, and that distinction is the whole
+     * implementation. Lenis is always lerping its scroll toward a target, and
+     * a wheel event is nothing more than `targetScroll + delta` — so this does
+     * the same thing, in `programmatic: false` mode, which is the wheel's own
+     * path through `scrollTo`. Three things follow from that, and all three
+     * were the bugs in the version before it:
+     *
+     *  - It cannot be cancelled, because it is not an animation to cancel. A
+     *    programmatic `scrollTo` is replaced outright by the next wheel event,
+     *    and a trackpad throws a second of momentum events after the fingers
+     *    lift — so the old assist was being thrown away a frame or two after
+     *    it fired, which is why it looked like it never ran.
+     *  - It has no handover. There is no second easing curve starting at its
+     *    own speed against the reader's; the target moved, and the same lerp
+     *    that was already carrying them keeps carrying them. The old curve
+     *    was an expo-out, which leaves the line at about seven times its
+     *    average speed — a jerk against anyone scrolling slower than that,
+     *    which was the abruptness.
+     *  - It stays interruptible. Scrolling up during it simply moves the
+     *    target back, and Lenis drops the curve for its own lerp — nothing
+     *    here has to watch for that or unwind itself.
+     *
+     * The shape of it is `cubic-bezier(0.77, 0, 0.175, 1)` over
+     * `NUDGE_DURATION` — an ease-in-out that leaves slowly, sweeps through the
+     * middle, and settles. It is handed to Lenis as the animation's own
+     * easing rather than approximated by dripping the distance in over frames,
+     * which is what the version before this did and why it could only ever be
+     * roughly a curve.
+     *
+     * Committing the destination is what survives the reader's momentum. On
+     * the `programmatic: false` path Lenis sets `targetScroll` to the end of
+     * the page before the animation starts and leaves it there, so a wheel
+     * event arriving mid-nudge adds its delta to a target that already has the
+     * whole nudge in it. The curve can be overridden — Lenis will lerp the
+     * rest of the way instead — but the destination cannot be lost, which is
+     * the difference between this and a plain `scrollTo`.
+     */
+    const NUDGE_DURATION = 0.9;
+
+    /**
+     * Solves a CSS cubic-bezier for y at a given x, the way a browser does:
+     * Newton-Raphson on the x polynomial to recover the curve parameter, then
+     * the same polynomial on y. Eight passes is what WebKit settles for and is
+     * far inside a pixel at this distance.
+     */
+    const cubicBezier = (x1: number, y1: number, x2: number, y2: number) => {
+      const a = (u: number, v: number) => 1 - 3 * v + 3 * u;
+      const b = (u: number, v: number) => 3 * v - 6 * u;
+      const c = (u: number) => 3 * u;
+      const at = (t: number, u: number, v: number) =>
+        ((a(u, v) * t + b(u, v)) * t + c(u)) * t;
+      const slope = (t: number, u: number, v: number) =>
+        3 * a(u, v) * t * t + 2 * b(u, v) * t + c(u);
+
+      return (x: number) => {
+        if (x <= 0) return 0;
+        if (x >= 1) return 1;
+        let t = x;
+        for (let pass = 0; pass < 8; pass += 1) {
+          const d = slope(t, x1, x2);
+          if (d === 0) break;
+          t -= (at(t, x1, x2) - x) / d;
+        }
+        return at(t, y1, y2);
+      };
+    };
+
+    const NUDGE_CURVE = cubicBezier(0.77, 0, 0.175, 1);
+
+    /**
+     * The curve above is an ease-in-out, so it leaves from a standstill — and
+     * the reader is not at a standstill when it fires. Handing Lenis that
+     * curve raw means the first frame moves a fifth of a pixel where the frame
+     * before it moved fifteen, which is a hard stop dressed up as an
+     * animation. That is the abruptness: not the nudge being too sharp, the
+     * nudge braking them to nothing before it starts.
+     *
+     * So the curve is given the reader's own speed to leave on. `carry` adds a
+     * term that starts at exactly their velocity and decays away, leaving the
+     * requested shape to do the rest:
+     *
+     *   E(t) = B(t) + s · t · (1 - t)³
+     *
+     * `s` is that velocity expressed in the curve's own units — how far along
+     * it would travel per unit time if it kept going at their speed — so the
+     * animation departs at the pace it took over from and eases into the
+     * sweep rather than interrupting it. The term is zero at both ends, so the
+     * nudge still lands exactly on the end of the page and still settles the
+     * way `cubic-bezier(0.77, 0, 0.175, 1)` settles.
+     *
+     * It costs nothing when there is nothing to carry: a reader who has
+     * drifted to the mark rather than travelled to it has `s` near zero, and
+     * the curve is then the requested one unmodified.
+     *
+     * `CARRY_MAX` is where it stops honouring the handover — past it the carry
+     * term would be most of the curve and the shape would stop being the one
+     * asked for, so a hard fling gets a softened brake instead of none.
+     */
+    const CARRY_MAX = 2;
+
+    const carry = (speed: number) => (t: number) =>
+      NUDGE_CURVE(t) + speed * t * (1 - t) ** 3;
+
+    /**
+     * Both the reveal and the nudge are reserved for a pointer, and for the
+     * same underlying reason: on a touch device the page is not scrolled by
+     * anything this file can keep step with.
+     *
+     * The reveal is a transform recomputed from `scroll` events on the main
+     * thread. A touch scroll is run by the compositor, which does not wait for
+     * that thread and does not have to — so the footer is positioned from a
+     * scroll offset that is already stale by the time it paints, and it
+     * shivers against a page moving perfectly smoothly underneath it. Nothing
+     * about the arithmetic fixes this; it is which thread the two things live
+     * on.
+     *
+     * The lurches on top of the shiver are the address bar. `remaining` is
+     * measured against `window.innerHeight`, and that changes by the height of
+     * the browser chrome the moment it collapses — 90px on a phone, which is
+     * 90px of footer applied to a single frame, mid-scroll, in the middle of a
+     * gesture.
+     *
+     * Both of those are fixed by not being on this thread, which is what the
+     * stylesheet's scroll-driven animation does and why it is preferred
+     * wherever it exists. This gate is what is left for the browsers that
+     * cannot: there, touch keeps a plain footer at the end of a page, which
+     * the platform scrolls flawlessly. The nudge stands down on touch for a
+     * different reason and keeps standing down either way: with Lenis' `syncTouch` off — the default, and what this page
+     * runs — touch scrolling is the platform's own and Lenis is only watching
+     * it, so moving its target mid-fling fights the OS for the position rather
+     * than adding to it.
+     */
+    const fine = window.matchMedia("(pointer: fine)");
+
+    /**
+     * Whether the browser can run the reveal itself, on the compositor, from
+     * the scroll-driven animation in the stylesheet. Where it can, it does,
+     * and none of the arithmetic below runs at all — the animation is the
+     * better version of it on every device, and the only version that survives
+     * a touch scroll.
+     */
+    const composited = CSS.supports("animation-timeline", "view()");
+
+    /**
+     * Whether the script has to drive the reveal instead. Still reserved for a
+     * pointer: on a browser without scroll-driven animations, a touch scroll
+     * would get back exactly the shiver and the address-bar lurches this gate
+     * was put here for, and no reveal at all is better than that one.
+     */
+    const drivable = () => !composited && !reduced.matches && fine.matches;
+
+    const measure = () => {
+      const box = reveal.getBoundingClientRect();
+      const remaining = Math.max(0, box.bottom - window.innerHeight);
+      // `opened` is how much of the footer is on screen: zero as its top edge
+      // reaches the bottom of the screen, its full height at the end of the
+      // page. The nudge fires at half of it.
+      return { height: box.height, remaining, opened: box.height - remaining };
+    };
+
+    const rise = () => {
+      if (!drivable()) {
+        footer.style.removeProperty("--footer-rise");
+        return;
+      }
+      footer.style.setProperty("--footer-rise", `${-measure().remaining}px`);
+    };
+
+    /**
+     * Armed from wherever the page happens to start, so a reload already in
+     * the footer does not push the reader the moment it loads. It re-arms as
+     * soon as the footer is off the bottom of the screen again — every arrival
+     * gets the nudge, not just the first.
+     */
+    const COMPLETE_AT = 0.5;
+    const REARM_AT = 0.4;
+    let armed = measure().opened < measure().height * COMPLETE_AT;
+
+    const nudge = () => {
+      const { height, opened, remaining } = measure();
+      if (height <= 0) return;
+
+      if (!armed) {
+        if (opened < height * REARM_AT) armed = true;
+        return;
+      }
+      if (opened < height * COMPLETE_AT || remaining <= 0) return;
+      if (reduced.matches || !fine.matches || !window.lenis) return;
+
+      const lenis = window.lenis;
+      const distance = lenis.limit - lenis.animatedScroll;
+      if (distance <= 0) return;
+
+      // Lenis counts velocity per frame; the curve is parameterised in the
+      // whole distance over the whole duration, so it is seconds either side.
+      const speed = Math.min(
+        Math.max((lenis.velocity * 60 * NUDGE_DURATION) / distance, 0),
+        CARRY_MAX,
+      );
+
+      armed = false;
+      lenis.scrollTo(lenis.limit, {
+        programmatic: false,
+        duration: NUDGE_DURATION,
+        easing: carry(speed),
+      });
+    };
+
+    let queued = false;
+    const schedule = () => {
+      // Bail before asking for the frame rather than inside it: where neither
+      // half of this has anything to do, the cheapest thing a scroll handler
+      // can do is not schedule work at all. The nudge still needs frames on a
+      // pointer even when the browser is drawing the reveal itself.
+      if (queued || (!drivable() && !fine.matches)) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        rise();
+        nudge();
+      });
+    };
+
+    rise();
+    window.addEventListener("scroll", schedule, { passive: true });
+    // Not `schedule`: a resize changes the footer's height under the mark, and
+    // running the assist off that would finish the reveal for a reader who
+    // only turned their phone over.
+    window.addEventListener(
+      "resize",
+      () => {
+        rise();
+        const { height, opened } = measure();
+        if (height > 0) armed = opened < height * COMPLETE_AT;
+      },
+      { passive: true },
+    );
+    reduced.addEventListener("change", rise);
+    // A mouse plugged into a tablet, or unplugged from one, moves this page in
+    // and out of being drivable; `rise` puts the footer back either way.
+    fine.addEventListener("change", rise);
+  }
+</script>
+
+<style>
+  /* The reveal.
+     ─────────
+     The footer is uncovered rather than scrolled to: it holds still against
+     the bottom of the screen while the page above slides off it, so the grey
+     grows upward out from under the call to action.
+
+     This is one clip and one translate, and no change to the page's layering.
+     A `position: fixed` footer with the page painted over it would be the
+     usual way, and it would cost the whole document an opaque background —
+     which is the one thing the coordinate crosshair needs it not to have (see
+     CoordinateCursor.astro, whose lines sit at z-index -1 and show through
+     everything that has no background of its own).
+
+     So the window is this box, an ordinary block in flow, and the footer
+     inside it is lifted by however far the page has left to scroll — which is
+     exactly the amount that puts its feet on the bottom of the screen. The
+     window clips what the lift pushes out the top. Since the lift is a
+     transform it takes no part in layout, so the box is still the footer's own
+     height and nothing here has to be measured or kept in step.
+
+     Without the script the rise is 0 and this is a footer at the end of a
+     page, which is what it was. */
+  .footer-reveal {
+    /* For the shadow below, which is positioned against this box. */
+    position: relative;
+    overflow: clip;
+  }
+
+  /* The shadow the page casts on the footer.
+     ───────────────────────────────────────
+     The reveal says the footer is underneath; this is the page above agreeing
+     with it. A soft edge of shade along the top of the grey, as if the section
+     that ends there were a sheet lying a little in front rather than a section
+     that simply stops.
+
+     It hangs off the window rather than the footer, and that is the whole
+     trick of it. The footer is lifted inside the window by the reveal — it is
+     the one thing here that moves — so a shadow drawn on it would ride up and
+     out through the top as the reader scrolled. The window does not move
+     relative to the page, so a shadow pinned to its top edge stays welded to
+     the seam the section above leaves, at every point in the reveal and at
+     rest.
+
+     `::after` rather than a background on the window, because the footer is a
+     positioned child and would paint straight over one. Generated last, it
+     lands above the footer without anyone needing a z-index.
+
+     The falloff is `0.3 · (1 - y)²`, written out as stops. Two properties of
+     that curve are doing the work, and the version before this had neither:
+
+     It lands flat. A gradient's last segment is a straight line, so a ramp
+     that simply runs out arrives at nothing still descending, and the eye
+     reads the corner where it stops as an edge — the transition was ending on
+     a line rather than fading past one. Squared, the slope reaches zero at the
+     same moment the shade does, and there is no corner left to find.
+
+     And it is spread. The shade is still doing something at 83% of the depth,
+     against 63px of total travel before, so the tail has somewhere to
+     disappear into. The steepest change anywhere along it is now 0.19 of an
+     8-bit value per pixel, against 0.457 — less than half the rate, which is
+     the difference between a shadow and a seam.
+
+     Nine stops rather than three. The browser interpolates linearly between
+     stops, so the curve is only ever a chain of straight segments; at nine it
+     is within 0.0012 of the real one, which is a sixteenth of a value and well
+     under anything that could show. The chromatic noise above sits at about
+     five values of per-channel spread, so it dithers the whole ramp — banding
+     across a gradient this shallow would otherwise be the next thing to go
+     looking for.
+
+     It runs the full width and costs nothing doing so — over the black margins
+     it is black on black. */
+  .footer-reveal::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: clamp(120px, 18vh, 220px);
+    background-image: linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.3) 0%,
+      rgb(0 0 0 / 0.23) 12.5%,
+      rgb(0 0 0 / 0.169) 25%,
+      rgb(0 0 0 / 0.117) 37.5%,
+      rgb(0 0 0 / 0.075) 50%,
+      rgb(0 0 0 / 0.042) 62.5%,
+      rgb(0 0 0 / 0.019) 75%,
+      rgb(0 0 0 / 0.005) 87.5%,
+      rgb(0 0 0 / 0) 100%
+    );
+    pointer-events: none;
+  }
+
+  .footer {
+    transform: translateY(var(--footer-rise, 0px));
+  }
+
+  /* The reveal, off the main thread.
+     ──────────────────────────────
+     Everything above describes the lift the script performs. This performs the
+     same lift and the browser runs it, which is the only version of it that
+     holds together on a phone: a touch scroll belongs to the compositor, and a
+     transform recomputed from `scroll` events on the main thread is always
+     answering a question about where the page was, not where it is. That gap
+     is the shiver. A scroll-driven animation is evaluated on the same thread
+     that does the scrolling, so there is no gap to see.
+
+     It is not a mobile special case — where the browser has this, it drives
+     the reveal everywhere, and the script stands down entirely (see
+     `composited` in the script). Desktop gets the same benefit; it just had
+     less to gain, because a wheel scroll goes through the main thread anyway.
+
+     `entry-crossing` is the range, and it is the whole reason this maps onto
+     the script's arithmetic exactly. It runs from the window's top edge
+     reaching the bottom of the screen to its bottom edge reaching the bottom
+     of the screen — which is the script's `remaining` going from the footer's
+     full height to nothing. `entry` is the near miss to avoid: for a subject
+     taller than the screen it ends somewhere else entirely, and the footer is
+     taller than the screen on a short window.
+
+     The timeline is named off the window rather than taken from `view()` on
+     the footer itself. The footer is the element being transformed, and a
+     timeline read from the thing the animation moves is a question with a
+     circular answer — even where the spec says layout wins, it is not worth
+     depending on. The window does not move. */
+  @supports (animation-timeline: view()) {
+    .footer-reveal {
+      view-timeline-name: --footer-reveal;
+    }
+
+    /* Longhands, and they have to stay longhands.
+       ─────────────────────────────────────────
+       `animation-timeline` is deliberately not part of the `animation`
+       shorthand — the shorthand *resets* it to `auto`, so it could never
+       legally carry one. Lightning CSS, which is what Vite minifies with,
+       implements an earlier draft in which it was, and folds any
+       `animation-timeline` sitting beside an `animation` shorthand into it:
+
+         animation: footer-reveal linear both;   ->  animation: linear both
+         animation-timeline: --footer-reveal;        footer-reveal --footer-reveal
+
+       which no browser parses, so the whole declaration is dropped and the
+       reveal silently does not exist. It only bites in production, because
+       dev serves this unminified.
+
+       Written as longhands there is no shorthand for it to fold into and the
+       declarations survive verbatim — checked against the installed minifier.
+       Do not condense these back into `animation:`. */
+    .footer {
+      animation-name: footer-reveal;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: --footer-reveal;
+      animation-range: entry-crossing;
+    }
+
+    /* -100% of the footer's own height, which is the window's height, which is
+       the distance the script calls `remaining` at the start of the reveal. */
+    @keyframes footer-reveal {
+      from {
+        transform: translateY(-100%);
+      }
+
+      to {
+        transform: translateY(0);
+      }
+    }
+  }
+
+  /* Scroll-linked movement, so it comes off with the rest of it — both the
+     script's version and the browser's. */
+  @media (prefers-reduced-motion: reduce) {
+    .footer {
+      transform: none;
+      /* `animation-name`, not the `animation` shorthand — see the note above
+         on what the minifier does when it finds one of those here. */
+      animation-name: none;
+    }
+  }
+
+  /* A screenful less the hairline above it, so that scrolling to the end of
+     the page puts the rule on the viewport's top edge and the footer under it
+     fills everything below: the rule and the footer together are the screen.
+     Without the subtraction the footer alone is the screen and the rule sits
+     one pixel off the top of it, which is one pixel out of view.
+
+     `lvh` rather than `vh` or `svh`: it is the viewport with the browser's own
+     chrome collapsed, which on a phone is the state it is in by the time the
+     reader has scrolled this far. `svh` would leave a sliver of the section
+     above still showing, and `dvh` would resize the footer while the toolbars
+     animate. The plain `vh` before it answers where `lvh` does not.
+
+     Grid rather than flex, because the two alignments this needs are on the
+     same axis and only grid can hold both: `align-content: end` drops the row
+     to the bottom of that screenful so the mark's feet close the page, and
+     `align-items: start` then lands the first line of text exactly on the top
+     of the mark, which is the taller of the two and so sets the row's height.
+     Flex has one `align-items` to spend and would have to choose. */
+  .footer {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: end;
+    align-items: start;
+    column-gap: clamp(200px, 24vw, 500px);
+    min-height: calc(100vh - var(--border-hairline-width));
+    min-height: calc(100lvh - var(--border-hairline-width));
+    /* The hairline ink itself, not a shade mixed to match it: laid over the
+       page's own background it composites to exactly the grey the section
+       rules and the vertical edges are drawn in, and it goes on tracking them
+       if that ink is ever retuned. Being an ink rather than a colour is also
+       what keeps this footer's own VerticalEdges visible on top of it — the
+       two coats of paper-at-19% compose to a brighter line, the same way a
+       crossing pair does anywhere else on the page. */
+    background-color: var(--border-hairline);
+    /* Only bites on a viewport too short to hold the mark, where the footer
+       grows past the screenful and the rule above it needs clearing. */
+    padding: clamp(48px, 6vw, 96px) var(--grid-margin) 0;
+    /* Unconditional, so the noise below always has this footer to blend
+       against and nothing behind it: without it the stacking context would be
+       the reveal's transform, which is not there under reduced motion. */
+    isolation: isolate;
+  }
+
+  /* The grey stops at the grid.
+     ──────────────────────────
+     Above the phone breakpoint the footer's ink is pulled in to the two
+     vertical hairlines, and the margins outside them are left as the page's
+     own black — so the field reads as the grid filled in rather than as a
+     band laid across the whole width, and the rules bound it the way they
+     bound every other section's content.
+
+     A gradient rather than a second element or `background-clip`. Clipping to
+     the content box would take the top padding with it and leave a black strip
+     above the mark as well, which is the one edge that has to stay closed.
+     The stops are doubled at each margin so there is no interpolation between
+     them at all — a hard edge, not a two-pixel ramp — and the outer colour is
+     paper at zero rather than `transparent`, which is the same thing said in
+     the palette's own terms.
+
+     `--surface-page` underneath is what the hairline ink then composites
+     against, so the band is the exact grey it was when the whole footer
+     carried it. Below the breakpoint the vertical rules are dropped (see
+     VerticalEdges) and there is no grid left to stop at, so the ink goes back
+     to running the full width. */
+  @media (min-width: 700px) {
+    .footer {
+      background-color: var(--surface-page);
+      background-image: linear-gradient(
+        to right,
+        rgb(var(--color-paper-rgb) / 0) var(--grid-margin),
+        var(--border-hairline) var(--grid-margin),
+        var(--border-hairline) calc(100% - var(--grid-margin)),
+        rgb(var(--color-paper-rgb) / 0) calc(100% - var(--grid-margin))
+      );
+    }
+  }
+
+  /* Chromatic noise on the grey.
+     ───────────────────────────
+     The site's grain is desaturated on purpose (GrainOverlay.astro runs both
+     its fields through `saturate 0`) because it is ink on paper and ink has
+     no colour of its own. This is the one place that is not true: the footer
+     is a flat field of one grey with nothing printed on it, and a flat field
+     is where a surface shows what it is actually made of. So here the
+     turbulence keeps its colour.
+
+     Turbulence writes each channel independently, which is already chromatic
+     noise — every pixel lands on its own red, green and blue rather than on
+     one grey. Only faintly, though (a mean chroma of 31 out of 255 raw), so
+     `saturate` opens the gap. Green comes out the quietest of the three,
+     which is not a choice but is worth keeping: it is also what a real sensor
+     does, having twice as many green photosites to average.
+
+     `overlay` is what makes this noise rather than a veil. Blended that way a
+     tile centred on mid-grey leaves the colour underneath exactly where it
+     was and only modulates around it — which is why the tile is pushed to
+     centre (`intercept -0.23`, turbulence's own mean sitting high at 186).
+     Measured over this footer's grey, the composite holds its mean to within
+     half a value out of 255 while carrying a per-channel spread of about 5
+     and a mean chroma of 9. Straight alpha at any useful strength instead
+     drags the whole field toward the tile's mean and fogs the grey.
+
+     Static, unlike the page's own grain: that is already resampling eight
+     times a second across everything including this, and a second field
+     flickering underneath it would be two textures arguing. This one is what
+     the surface is made of; that one is what is happening to it.
+
+     On the filter region and `stitchTiles`, see the long note in
+     GrainOverlay.astro — the same trap applies here, and the same fix. */
+  .footer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* Under the mark and the copy, over the footer's own background. */
+    z-index: -1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='c' filterUnits='userSpaceOnUse' x='0' y='0' width='256' height='256'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='1' stitchTiles='stitch'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0' intercept='1'/%3E%3C/feComponentTransfer%3E%3CfeColorMatrix type='saturate' values='3'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1' intercept='-0.23'/%3E%3CfeFuncG type='linear' slope='1' intercept='-0.23'/%3E%3CfeFuncB type='linear' slope='1' intercept='-0.23'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23c)'/%3E%3C/svg%3E");
+    background-size: 256px 256px;
+    mix-blend-mode: overlay;
+    opacity: 0.16;
+    /* CoordinateCursor hit-tests with elementFromPoint to find the buttons it
+       snaps onto; a sheet across the footer must not be one of the answers. */
+    pointer-events: none;
+  }
+
+  /* The noise is the surface, so it reaches exactly as far as the surface
+     does. Carried on into the margins it would leave them a shade off the page
+     black they are meant to be indistinguishable from — `overlay` on a near
+     black modulates it barely, but barely is not the same as not at all.
+
+     After the rule above rather than beside the gradient it belongs with: both
+     are `.footer::before` at the same specificity, so this only wins by coming
+     later. */
+  @media (min-width: 700px) {
+    .footer::before {
+      inset: 0 var(--grid-margin);
+    }
+  }
+
+  /* Sized against the viewport rather than the column grid: it is a mark
+     closing the page, not a piece of content in a column. Large enough to be
+     the page's last statement — roughly half the width, which the four lines
+     of copy beside it need nowhere near the rest of. The ceiling is what stops
+     it growing without end on a very wide display.
+
+     Drawn in the hairline ink rather than the accent, and from the outline cut
+     of the mark rather than the solid one: at this size a filled acid-green
+     monogram is the loudest thing on the page, and the footer is the quietest
+     part of it. As an outline in the same grey as the rules it becomes another
+     line on the grid — the largest one — rather than a logo sitting on top of
+     it. Laid over the footer's own coat of that ink it reads one step brighter
+     than the background, the same way a crossing pair of hairlines does. */
+  .footer__logo {
+    display: block;
+    /* Width is what the mark is sized by, but height is what has to fit: it is
+       all but square, so on a short window a width of 46vw would be taller than
+       the screenful and push the rule above it out of view. The second term is
+       the ceiling that keeps the whole footer inside one screen. */
+    width: min(clamp(300px, 46vw, 700px), 70lvh);
+    /* RiyoOutline's own 457 × 452, and it has to be the asset's ratio rather
+       than near it: at any other, `contain` fits the mask to the tighter axis
+       and centres it, and the letterboxing that leaves is a margin holding the
+       mark off the rule below. The outline's ink runs to all four edges of its
+       viewBox, so with the ratio matched its left stroke lands on the box's own
+       left edge — which is the grid margin, which is where VerticalEdges draws
+       its line. The mark meets the rule rather than nearly reaching it. */
+    aspect-ratio: 457 / 452;
+    background-color: var(--border-hairline);
+    -webkit-mask: url("/RiyoOutline.svg") no-repeat center / contain;
+    mask: url("/RiyoOutline.svg") no-repeat center / contain;
+  }
+
+  /* One block of copy, so the four lines are spaced by the body leading and
+     nothing else — the copyright reads as the last line of the stack rather
+     than as a separate footnote. */
+  .footer__meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-family: var(--font-body);
+    font-size: var(--text-b2);
+    letter-spacing: var(--tracking-body);
+    line-height: var(--leading-body);
+    color: var(--ink-primary);
+  }
+
+  /* White, like the copy around it. The underline is the whole hover state:
+     a colour change would make these the only links on the page that are not
+     the ink they sit in. */
+  .footer__link {
+    position: relative;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* The underline is drawn rather than declared, because `text-decoration`
+     has no left edge to animate — it is there or it is not. This is a rule of
+     the site's own hairline weight that wipes on from the left, in the
+     direction the name above it is read.
+
+     It sits below the descenders rather than through them. `text-decoration`
+     was stepping around them itself (skip-ink), and a drawn rule has no such
+     manners; 0.1em clears the 0.25em descent at every size the clamped body
+     type takes, and a hairline sitting clear under the word is this site's
+     vocabulary anyway.
+
+     `scaleX` on a 1px box, so the whole thing is one composited transform.
+     The obvious alternative — growing `background-size` from 0% — repaints
+     the text's own box every frame for the same picture.
+
+     One duration for all three links rather than a constant speed: the email
+     is three times the width of `LinkedIn`, and matching their speeds would
+     make it the slow one. Sharing a duration is what makes them read as one
+     set of links instead of three separate effects. */
+  .footer__link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.1em;
+    height: var(--border-hairline-width);
+    background-color: currentColor;
+
+    /* Held in a variable so the two states below say only which way it goes,
+       and the reduced-motion case can take the movement out in one place. */
+    --underline: 0;
+    /* Retracting, which is the shorter of the two: the reader has already
+       moved on, and an exit that takes as long as the entrance reads as the
+       page being slow to let go. */
+    --underline-duration: 160ms;
+
+    transform: scaleX(var(--underline));
+    /* Left, both ways. Swapping the origin on exit would sweep the line off
+       to the right and keep every movement travelling the same way, which is
+       prettier — but a hover broken off mid-draw would then jump the drawn
+       part bodily across to the other end before it retracted. These are
+       three links stacked a line apart, so a pointer crosses them in and out
+       constantly and that interruption is the common case, not the edge. */
+    transform-origin: left center;
+    transition: transform var(--underline-duration) var(--ease-out-strong);
+  }
+
+  /* Steep enough that most of the width is covered early: the line reads as
+     arriving, then settling, rather than travelling at one speed. */
+  .footer__link:focus-visible::after {
+    --underline: 1;
+    --underline-duration: 260ms;
+  }
+
+  /* Gated: on touch a tap fires hover too, and the line would be left drawn
+     under whichever link was last pressed. */
+  @media (hover: hover) and (pointer: fine) {
+    .footer__link:hover::after {
+      --underline: 1;
+      --underline-duration: 260ms;
+    }
+  }
+
+  /* The underline is the affordance, so it stays — what goes is the travel.
+     It fades in place instead, which says the same thing without a hairline
+     sweeping across the screen. */
+  @media (prefers-reduced-motion: reduce) {
+    .footer__link::after {
+      transform: none;
+      opacity: var(--underline);
+      transition: opacity 120ms ease;
+    }
+  }
+
+  .footer__copyright {
+    margin: 32px 0 0;
+  }
+
+  /* Side by side stops fitting once the mark and four lines of 20px copy have
+     to share a phone's width, so the mark takes the whole of the grid's width
+     on its own line and the copy goes underneath it. It keeps the left edge;
+     what it gives up is being the last thing on the page. */
+  @media (max-width: 699px) {
+    .footer {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: clamp(24px, 6vw, 40px);
+      padding-bottom: clamp(40px, 8vw, 56px);
+      /* Half a screen rather than a whole one. Stacked, the footer is tall
+         enough on its own that a full screenful was mostly the empty stretch
+         above the mark, and the hairline is not subtracted here because the
+         rule only has to land on the viewport's top edge at full height. */
+      min-height: 50vh;
+      min-height: 50lvh;
+    }
+
+    /* Margin to margin, not edge to edge: the mark lines up with the copy
+       under it and with every other section's content above it. */
+    .footer__logo {
+      width: 100%;
+    }
+  }
+</style>

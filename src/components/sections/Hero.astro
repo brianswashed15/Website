@@ -1,0 +1,587 @@
+---
+/**
+ * Figma node 146:244. Three flush 16:9 tiles per row, three rows, inset by the
+ * grid margin with no gutters, closed by a full-bleed rule. The tiles are the
+ * featured work, in the order set by dragging in the Studio.
+ *
+ * Each tile is a still with a muted looping video laid over it. Nothing
+ * downloads or plays until the tile is on screen, and nothing plays at all
+ * under prefers-reduced-motion, so the still is what remains.
+ */
+import type { ProjectSummary } from "../../lib/sanity";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+
+interface Props {
+  projects?: ProjectSummary[];
+}
+
+const { projects = [] } = Astro.props;
+
+const COLUMNS = 3;
+const TILE_COUNT = COLUMNS * 3;
+/** A tile is a third of the content width; 880 covers the 1440 design at 2x. */
+const TILE_WIDTHS = [480, 880, 1320];
+const tileHeight = (width: number) => Math.round((width * 9) / 16);
+const tileSrc = (url: string, width: number) =>
+  `${url}?w=${width}&h=${tileHeight(width)}&fit=crop&auto=format`;
+
+/**
+ * videoUrl is the real source. devVideoUrl falls back to the file uploaded to
+ * Sanity, which serves from Sanity's CDN until projects have hosted playback URLs.
+ */
+const videoFor = (project: ProjectSummary) =>
+  project.videoUrl ?? project.devVideoUrl;
+
+const tiles = projects.slice(0, TILE_COUNT);
+---
+
+<section class="hero" aria-labelledby="hero-heading">
+  <h1 id="hero-heading" class="visually-hidden">Riyo Productions</h1>
+  {
+    tiles.length > 0 && (
+      <ul class="hero__grid">
+        {tiles.map((project, index) => (
+          <li
+            class="hero__tile"
+            data-hero-tile
+            data-title={project.title}
+            tabindex="0"
+            aria-label={project.title}
+          >
+            {project.posterUrl && (
+              <img
+                class="hero__still"
+                src={tileSrc(project.posterUrl, 880)}
+                srcset={TILE_WIDTHS.map(
+                  (width) =>
+                    `${tileSrc(project.posterUrl!, width)} ${width}w`,
+                ).join(", ")}
+                sizes="(min-width: 700px) 33vw, 100vw"
+                width="880"
+                height={tileHeight(880)}
+                alt={project.posterAlt ?? project.title}
+                loading={index < COLUMNS ? "eager" : "lazy"}
+                fetchpriority={index === 0 ? "high" : "auto"}
+                decoding="async"
+              />
+            )}
+            {videoFor(project) && (
+              <video
+                class="hero__video"
+                data-autoplay-video
+                src={videoFor(project)}
+                preload="none"
+                muted
+                loop
+                playsinline
+                tabindex="-1"
+                aria-hidden="true"
+              />
+            )}
+          </li>
+        ))}
+        <li class="hero__tile-corners" data-hero-tile-corners aria-hidden="true"></li>
+      </ul>
+    )
+  }
+  <VerticalEdges />
+  {
+    tiles.length > 0 && (
+      // Mirrors the cursor near whichever tile is hovered or focused, naming
+      // it. Hidden outright on touch/coarse pointers via the media query
+      // below rather than on hover state, since there is no cursor to chase.
+      <div class="hero__cursor-label" data-hero-label aria-hidden="true">
+        <div class="hero__cursor-frame">
+          <div class="hero__cursor-box" data-hero-cursor-box>
+          </div>
+          <span class="hero__cursor-text" data-hero-label-text />
+        </div>
+      </div>
+      <div class="hero__cursor-dot" data-hero-cursor-dot aria-hidden="true">
+      </div>
+    )
+  }
+</section>
+
+<style>
+  /* Bottom rule closes the section; the top edge is the navbar's bottom stroke.
+     Drawn in the padding box so vertical edges overlap it and composite lighter.
+
+     The hairline of bottom padding is what the rule is drawn in. A background
+     paints behind its own children, so with the grid running to the section's
+     bottom edge the last row of tiles sat on the rule and hid every part of it
+     except the two margin strips either side of the grid. The padding gives it
+     a pixel of its own to sit in, below the tiles rather than under them. */
+  .hero {
+    position: relative;
+    /* Above CoordinateCursor's crosshair layer, which otherwise draws its
+       vertical line across the tiles while the grid is still on screen. The
+       tiles are the one place that effect stands down; see
+       CoordinateCursor.astro. */
+    z-index: 15;
+    padding-inline: var(--grid-margin);
+    padding-block-end: var(--border-hairline-width);
+    background: linear-gradient(var(--border-hairline), var(--border-hairline))
+      left bottom / 100% var(--border-hairline-width) no-repeat;
+  }
+
+  /* No gutter: the tiles are flush in the design. */
+  .hero__grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hero__tile {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background-color: rgb(var(--color-paper-rgb) / 0.05);
+  }
+
+  .hero__tile::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--color-base);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-hover);
+  }
+
+  .hero__tile:is(:hover, :focus-visible)::after {
+    opacity: 0.4;
+  }
+
+  .hero__tile-corners {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    width: var(--hero-corner-width, 0px);
+    height: var(--hero-corner-height, 0px);
+    opacity: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--color-paper), var(--color-paper)) left top / 8px var(--border-hairline-width) no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right top / 8px var(--border-hairline-width) no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) left bottom / 8px var(--border-hairline-width) no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right bottom / 8px var(--border-hairline-width) no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) left top / var(--border-hairline-width) 8px no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right top / var(--border-hairline-width) 8px no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) left bottom / var(--border-hairline-width) 8px no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right bottom / var(--border-hairline-width) 8px no-repeat;
+    transform: translate3d(var(--hero-corner-x, 0px), var(--hero-corner-y, 0px), 0);
+    transition:
+      transform 220ms cubic-bezier(0.645, 0.045, 0.355, 1),
+      width 220ms cubic-bezier(0.645, 0.045, 0.355, 1),
+      height 220ms cubic-bezier(0.645, 0.045, 0.355, 1),
+      opacity var(--transition-hover);
+    will-change: transform, width, height;
+  }
+
+  .hero__tile-corners.is-visible {
+    opacity: 1;
+  }
+
+  /* Focusable so the cursor label's title also reaches keyboard and
+     screen-reader users; needs its own indicator since a bare <li> has none. */
+  .hero__tile:focus-visible {
+    outline: var(--border-hairline-width) solid var(--ink-primary);
+    outline-offset: calc(-1 * var(--border-hairline-width));
+  }
+
+  /* Native cursor replaced by hero__cursor-dot below, matching the square
+     CoordinateCursor uses everywhere else on the page. Only where a cursor
+     exists to replace — same gate as the label. */
+  @media (hover: hover) and (pointer: fine) {
+    .hero__tile {
+      cursor: none;
+    }
+  }
+
+  .hero__still,
+  .hero__video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The video sits on the still and is revealed once it has frames, so the
+     tile never flashes empty while it loads. */
+  .hero__video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity var(--transition-hover);
+  }
+
+  .hero__video.is-playing {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero__video {
+      transition: none;
+    }
+  }
+
+  /* Three 16:9 tiles across stop being legible on a phone. */
+  @media (max-width: 699px) {
+    .hero__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Cursor label: names whichever tile is hovered or focused, positioned by
+     the script below. It stays mounted at scale(0)/opacity 0 and is only
+     ever un-collapsed by .is-visible, so open/close is one transition rather
+     than a mount/unmount. Only shown where a cursor exists to chase. */
+  .hero__cursor-label {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 20;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .hero__cursor-label {
+      display: block;
+    }
+  }
+
+  /* The native-cursor replacement itself: tracks the raw pointer position
+     directly (not the label's lerped, offset one), so it stays exactly under
+     the cursor rather than trailing it. */
+  .hero__cursor-dot {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 21;
+    width: 6px;
+    height: 6px;
+    background: var(--color-paper);
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform;
+    transition: opacity var(--transition-hover);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .hero__cursor-dot {
+      display: block;
+    }
+  }
+
+  .hero__cursor-dot.is-visible {
+    opacity: 1;
+  }
+
+  .hero__cursor-frame {
+    position: relative;
+    padding: 2px 8px;
+  }
+
+  /* Scales from the top-left corner so it visibly snaps open toward the
+     bottom-right (and shuts in reverse), matching where the label sits
+     relative to the cursor it's offset from. */
+  .hero__cursor-box {
+    position: absolute;
+    inset: 0;
+    transform-origin: top left;
+    transform: scale(0);
+    background: var(--color-base);
+    border: var(--border-hairline-width) solid rgb(var(--color-paper-rgb) / 0.55);
+    transition: transform var(--hero-cursor-duration, 260ms) var(--ease-out-strong);
+  }
+
+  .hero__cursor-label.is-visible .hero__cursor-box {
+    transform: scale(1);
+  }
+
+  /* Applied when the default placement would run off the viewport's right
+     edge: the label moves to the cursor's left instead, so the box scales
+     from its top-right corner (nearest the cursor) rather than its
+     top-left. */
+  .hero__cursor-label--flip .hero__cursor-box {
+    transform-origin: top right;
+  }
+
+  .hero__cursor-text {
+    position: relative;
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    line-height: 18px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--color-paper);
+    opacity: 0;
+    transition: opacity var(--hero-cursor-duration, 260ms) var(--ease-out-strong);
+  }
+
+  .hero__cursor-label.is-visible .hero__cursor-text {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero__tile::after,
+    .hero__tile-corners,
+    .hero__cursor-box,
+    .hero__cursor-text,
+    .hero__cursor-dot {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  import "../../scripts/autoplay-video";
+</script>
+
+<script>
+  // Cursor label: names whichever tile is hovered or focused, following the
+  // pointer. Position is written straight to the node's transform on every
+  // move instead of through a framework re-render, and the chase itself runs
+  // on requestAnimationFrame so it stays off the main thread's layout work.
+  const grid = document.querySelector<HTMLElement>(".hero__grid");
+  const tiles = Array.from(
+    document.querySelectorAll<HTMLLIElement>("[data-hero-tile]"),
+  );
+  const label = document.querySelector<HTMLDivElement>("[data-hero-label]");
+  const labelText = label?.querySelector<HTMLSpanElement>(
+    "[data-hero-label-text]",
+  );
+  const dot = document.querySelector<HTMLDivElement>("[data-hero-cursor-dot]");
+  const tileCorners = document.querySelector<HTMLLIElement>(
+    "[data-hero-tile-corners]",
+  );
+
+  if (grid && label && labelText && dot && tileCorners && tiles.length) {
+    // Bottom-right of the cursor by default.
+    const OFFSET_X = 24;
+    const OFFSET_Y = 20;
+    // Kept clear of the viewport's right edge before flipping the label to
+    // the cursor's left instead of letting it run off-screen.
+    const EDGE_PADDING = 16;
+    const LERP_FACTOR = 0.15;
+    const SETTLE_THRESHOLD = 0.1;
+    const OPEN_DURATION_MS = 160;
+    const CLOSE_DURATION_MS = 260;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    let frame = 0;
+    let target = { x: 0, y: 0 };
+    let current = { x: 0, y: 0 };
+    let hasPosition = false;
+
+    // The label only tracks the cursor while shown; while hidden or mid-close
+    // it stays put, then jumps straight to the cursor the instant it reopens.
+    // Without this a closing box would visibly slide toward the next tile
+    // while also shrinking, reading as a ghosted, doubled corner.
+    let followPaused = true;
+    let visible = false;
+    let displayedTile: HTMLElement | null = null;
+
+    // The tile actually under the pointer right now, kept separate from
+    // `displayedTile` so a quick hop between tiles plays a full close/open
+    // against whichever tile is current once the close finishes.
+    let hoveredTile: HTMLElement | null = null;
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Cached in show(), not read on every animation frame: the frame's
+    // rendered width only changes when the title text changes, not on every
+    // pointer move, so there's no reason to force a layout read that often.
+    let labelWidth = 0;
+
+    function applyPosition() {
+      const overflowsRight =
+        current.x + OFFSET_X + labelWidth > window.innerWidth - EDGE_PADDING;
+      label!.classList.toggle("hero__cursor-label--flip", overflowsRight);
+      const x = overflowsRight
+        ? current.x - OFFSET_X - labelWidth
+        : current.x + OFFSET_X;
+      label!.style.transform = `translate3d(${x}px, ${current.y + OFFSET_Y}px, 0)`;
+    }
+
+    // The dot tracks the raw target directly, not the label's lerped
+    // `current` — a cursor replacement should feel immediate, not trail.
+    function applyDotPosition() {
+      dot!.style.transform = `translate3d(${target.x}px, ${target.y}px, 0) translate(-50%, -50%)`;
+    }
+
+    function tick() {
+      if (followPaused) {
+        frame = 0;
+        return;
+      }
+
+      const dx = target.x - current.x;
+      const dy = target.y - current.y;
+
+      if (Math.abs(dx) < SETTLE_THRESHOLD && Math.abs(dy) < SETTLE_THRESHOLD) {
+        current = { ...target };
+        applyPosition();
+        frame = 0;
+        return;
+      }
+
+      current = {
+        x: current.x + dx * LERP_FACTOR,
+        y: current.y + dy * LERP_FACTOR,
+      };
+      applyPosition();
+      frame = requestAnimationFrame(tick);
+    }
+
+    function startFollowing() {
+      if (!frame) frame = requestAnimationFrame(tick);
+    }
+
+    function snapToTarget() {
+      current = { ...target };
+      hasPosition = true;
+      applyPosition();
+    }
+
+    function clearCloseTimer() {
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
+    }
+
+    function show(tile: HTMLElement) {
+      displayedTile = tile;
+      labelText!.textContent = tile.dataset.title ?? "";
+      // Text changed the frame's natural width; read it back before the next
+      // applyPosition() so the edge check and any flip use the new size
+      // rather than the previous tile's.
+      labelWidth = label!.offsetWidth;
+      label!.style.setProperty("--hero-cursor-duration", `${OPEN_DURATION_MS}ms`);
+      visible = true;
+      label!.classList.add("is-visible");
+      dot!.classList.add("is-visible");
+      const gridRect = grid!.getBoundingClientRect();
+      const tileRect = tile.getBoundingClientRect();
+      tileCorners!.style.setProperty("--hero-corner-x", `${tileRect.left - gridRect.left}px`);
+      tileCorners!.style.setProperty("--hero-corner-y", `${tileRect.top - gridRect.top}px`);
+      tileCorners!.style.setProperty("--hero-corner-width", `${tileRect.width}px`);
+      tileCorners!.style.setProperty("--hero-corner-height", `${tileRect.height}px`);
+      tileCorners!.classList.add("is-visible");
+    }
+
+    function hide() {
+      label!.style.setProperty("--hero-cursor-duration", `${CLOSE_DURATION_MS}ms`);
+      visible = false;
+      label!.classList.remove("is-visible");
+      dot!.classList.remove("is-visible");
+      tileCorners!.classList.remove("is-visible");
+    }
+
+    function openLatestHovered() {
+      if (!hoveredTile) return;
+      followPaused = false;
+      // show() before snapToTarget(): positioning reads labelWidth, which
+      // show() is what updates for the tile about to be displayed.
+      show(hoveredTile);
+      snapToTarget();
+    }
+
+    function onPointerMove(event: PointerEvent) {
+      target = { x: event.clientX, y: event.clientY };
+      applyDotPosition();
+
+      // Reduced motion skips the chase animation outright rather than just
+      // disabling the CSS transitions, since the lerp itself is the motion.
+      if (reduced.matches) {
+        current = { ...target };
+        hasPosition = true;
+        applyPosition();
+        return;
+      }
+
+      if (!hasPosition) {
+        current = { ...target };
+        hasPosition = true;
+        applyPosition();
+      }
+      if (!followPaused) startFollowing();
+    }
+
+    function onEnter(tile: HTMLElement) {
+      return (event: Event) => {
+        if (event instanceof PointerEvent) {
+          target = { x: event.clientX, y: event.clientY };
+          applyDotPosition();
+        }
+        hoveredTile = tile;
+
+        if (visible && displayedTile !== tile) {
+          // Something else is already open: close it first, then reopen with
+          // whichever tile is actually current once the close finishes,
+          // rather than instantly relabeling in place.
+          followPaused = true;
+          hide();
+          clearCloseTimer();
+          closeTimer = setTimeout(
+            () => {
+              closeTimer = null;
+              openLatestHovered();
+            },
+            reduced.matches ? 0 : CLOSE_DURATION_MS,
+          );
+          return;
+        }
+
+        // Nothing shown yet (or re-entering the tile already displayed): open
+        // straight at the cursor.
+        clearCloseTimer();
+        followPaused = false;
+        show(tile);
+        snapToTarget();
+      };
+    }
+
+    function onLeave(tile: HTMLElement) {
+      return () => {
+        if (hoveredTile === tile) hoveredTile = null;
+        if (displayedTile !== tile) return;
+
+        // Deferred by one microtask rather than closed immediately: tiles
+        // are flush, so moving straight from one to the next fires this
+        // pointerleave and the next tile's pointerenter back to back in the
+        // same synchronous pass. Closing here first would make onEnter see
+        // `visible` already false and skip straight to an instant relabel
+        // instead of the close-then-reopen below. Queuing the close lets
+        // that pointerenter run first and see this tile as still open; if no
+        // enter follows (the pointer actually left the grid), hoveredTile is
+        // still empty when this runs and the close proceeds as normal.
+        queueMicrotask(() => {
+          if (hoveredTile) return;
+          followPaused = true;
+          hide();
+        });
+      };
+    }
+
+    grid.addEventListener("pointermove", onPointerMove, { passive: true });
+
+    for (const tile of tiles) {
+      const enter = onEnter(tile);
+      const leave = onLeave(tile);
+      tile.addEventListener("pointerenter", enter);
+      tile.addEventListener("pointerleave", leave);
+      tile.addEventListener("focus", enter);
+      tile.addEventListener("blur", leave);
+    }
+  }
+</script>

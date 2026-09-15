@@ -1,0 +1,20 @@
+---
+import AboutIntro from "../components/sections/AboutIntro.astro";
+import Footer from "../components/sections/Footer.astro";
+import Navbar from "../components/sections/Navbar.astro";
+import SectionRule from "../components/ui/SectionRule.astro";
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="About | Riyo Productions">
+  <Navbar />
+  <main>
+    {/* The section heading inside AboutIntro is an `h2`, so the page needs an
+        `h1` to hang off — but the design draws the muted section heading, not
+        a page title. `visually-hidden` is the layout's own answer to that. */}
+    <h1 class="visually-hidden">About</h1>
+    <AboutIntro />
+  </main>
+  <SectionRule />
+  <Footer />
+</Layout>

@@ -1,0 +1,21 @@
+---
+/**
+ * The horizontal hairline that separates one page section from the next.
+ *
+ * A thematic break rather than decoration, so it is an `<hr>`: the sections it
+ * sits between are genuinely different subjects. It runs full bleed, matching
+ * the rules that close the featured grid, and uses the one stroke weight and
+ * color shared by every hairline on the site.
+ */
+---
+
+<hr class="section-rule" />
+
+<style>
+  .section-rule {
+    height: var(--border-hairline-width);
+    margin: 0;
+    border: 0;
+    background-color: var(--border-hairline);
+  }
+</style>

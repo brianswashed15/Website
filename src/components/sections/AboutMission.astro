@@ -1,0 +1,1233 @@
+---
+import Button from "../ui/Button.astro";
+import type { AboutSection } from "../../lib/sanity";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+
+interface Props {
+  content: AboutSection;
+}
+
+const { content } = Astro.props;
+const testimonials = content.testimonials;
+const total = testimonials.length;
+const pad = (value: number) => String(value).padStart(2, "0");
+/** One strip of these sits behind each digit window of the counter. */
+const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+/**
+ * Words get their own boxes so a line of the quote can be moved on its own.
+ * Whitespace stays a plain text node between them, so the paragraph still
+ * breaks wherever it would have broken.
+ */
+const toWords = (text: string) =>
+  text
+    .split(/(\s+)/)
+    .filter(Boolean)
+    .map((chunk) => ({ text: chunk, isSpace: /^\s+$/.test(chunk) }));
+const statementParts = content.statement.split(
+  /(Riyo Productions|brands|artists|creators)/g,
+);
+
+const statementClass = (part: string) => {
+  if (part === "Riyo Productions") return "statement__brand";
+  if (part === "brands") return "statement__brands";
+  if (part === "artists") return "statement__artists";
+  if (part === "creators") return "statement__creators";
+  return undefined;
+};
+
+/**
+ * The studio's own name is the one that gets the full three-colour cascade —
+ * it is the mark, and the cascade is the mark's own palette passing over it.
+ * The three words for who the work is for each state a single colour, so they
+ * are painted once, in that colour, and nothing else.
+ */
+const isCascade = (part: string) => part === "Riyo Productions";
+
+/**
+ * The statement arrives a word at a time, so every word needs its own box and
+ * its own place in the queue. Both are decided here rather than on the client:
+ * the spans ship in the HTML and the reveal only has to add one class, which
+ * costs no layout work in the first frame and cannot flash unsplit copy.
+ *
+ * Whitespace is left as plain text between the spans so the heading still wraps
+ * on its own terms, and the coloured segments stay the parents of their words
+ * so the split does not disturb the colour.
+ *
+ * The queue counts what a reader sees as one word, not what the split produced.
+ * A comma after a coloured word falls into the next segment and so cannot share
+ * its span; giving it the same place in the queue instead means it arrives with
+ * the word it is attached to rather than a beat behind it.
+ */
+let wordIndex = -1;
+let afterSpace = true;
+
+/**
+ * The sentence is written in Sanity, so its length is a content decision and
+ * the step between two words cannot be a constant: a fixed step that reads well
+ * over ten words drags badly over fifty. Sizing the step to the word count
+ * instead keeps the wave inside the same window whatever gets typed, and the
+ * ceiling stops a very short statement from arriving all at once.
+ *
+ * The count is taken before the walk rather than from it, because the colours
+ * are scheduled during the walk and they need the step to already be known.
+ */
+const STATEMENT_STAGGER_WINDOW_MS = 900;
+const STATEMENT_STAGGER_MAX_MS = 40;
+const statementWordCount = content.statement.split(/\s+/).filter(Boolean).length;
+const statementStagger = Math.min(
+  STATEMENT_STAGGER_MAX_MS,
+  Math.round(STATEMENT_STAGGER_WINDOW_MS / Math.max(statementWordCount, 1)),
+);
+
+/**
+ * How long one word's entrance takes — the duration inside --transition-text.
+ * A word has finished arriving at its place in the queue plus this.
+ */
+const ENTRANCE_MS = 400;
+
+/**
+ * The coloured words take their colour one after another rather than all at
+ * once, so they need a second queue of their own, counted across segments.
+ *
+ * The queue is a running clock rather than an index: each colour is hung off
+ * its own word's entrance, so the wipe runs while the rest of the sentence is
+ * still filling in behind it, and the clock only steps in when two coloured
+ * words sit close enough together to arrive on top of each other.
+ */
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────
+ * The colour entrance, in one place. Every number the wipe runs on lives
+ * here and is handed to the CSS below as a custom property, so the timing
+ * can be tuned without going looking for it in three different rules.
+ * Milliseconds throughout.
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+const WIPE = {
+  /**
+   * When a word's colour opens, measured from the moment that same word has
+   * finished arriving. Negative starts the colour under the tail of the
+   * word's own entrance; positive puts a beat after it.
+   *
+   * Anchoring each colour to its own word is what keeps the wipe inside the
+   * entrance rather than after it: the sentence is still filling in behind
+   * the word being painted, which is the point.
+   */
+  startAfterWord: -100,
+
+  /**
+   * The three passes over the studio's own name, in the order they sweep.
+   * `offset` is how long after that word's turn opens the pass begins, so
+   * the passes overlap and read as one cascade rather than three wipes.
+   */
+  cascade: [
+    { duration: 170, offset: 0 },
+    { duration: 210, offset: 80 },
+    { duration: 260, offset: 170 },
+  ],
+
+  /** The single pass the audience words take. */
+  single: { duration: 240 },
+
+  /**
+   * The least time between two colours opening. The coloured words are not
+   * evenly spaced in the sentence — two of them are adjacent — so without a
+   * floor their colours would land on top of each other; this is what keeps
+   * them reading one after another while the entrance is still running.
+   * Raise it to space them out, lower it to let them crowd.
+   */
+  minStep: 180,
+};
+
+/** How long a word's turn lasts: its last pass's start plus how long it runs. */
+const CASCADE_SPAN_MS = Math.max(
+  ...WIPE.cascade.map((pass) => pass.offset + pass.duration),
+);
+const SINGLE_SPAN_MS = WIPE.single.duration;
+
+let wipeClock = 0;
+const statementSegments = statementParts.filter(Boolean).map((part) => {
+  const className = statementClass(part);
+  /* The coloured segments are the ones whose colour is worth arriving: they
+     take the same wipe the closing word of the contact heading takes. */
+  const isWipe = className !== undefined;
+  const cascade = isWipe && isCascade(part);
+
+  /**
+   * The studio's name is two words and one thing, so it is kept whole rather
+   * than split: one box, one place in the queue, one sweep of the cascade
+   * running the length of both words. Splitting it gave "Riyo" and
+   * "Productions" separate turns, and the mark arrived in halves.
+   *
+   * The cost is that the pair can no longer break across two lines — see the
+   * `nowrap` on .word--joined below, which is what stops the box wrapping
+   * inside itself and leaving the clip sweeping over two lines at once.
+   */
+  const chunks = cascade ? [part] : part.split(/(\s+)/).filter(Boolean);
+
+  return {
+    className,
+    isWipe,
+    cascade,
+    chunks: chunks.map((chunk) => {
+      if (/^\s+$/.test(chunk)) {
+        afterSpace = true;
+        return { text: chunk, index: null, wipeAt: null, wipeSpan: 0 };
+      }
+      let wipeAt: number | null = null;
+      if (afterSpace) {
+        wordIndex += 1;
+        if (isWipe) {
+          // Its own entrance, or a floor's distance after the colour
+          // before it — whichever comes later.
+          wipeAt = Math.max(
+            wordIndex * statementStagger + ENTRANCE_MS + WIPE.startAfterWord,
+            wipeClock,
+          );
+          wipeClock = wipeAt + WIPE.minStep;
+        }
+        afterSpace = false;
+      }
+      return {
+        text: chunk,
+        index: wordIndex,
+        wipeAt,
+        wipeSpan: cascade ? CASCADE_SPAN_MS : SINGLE_SPAN_MS,
+      };
+    }),
+  };
+});
+
+/** The pass timings, handed to the CSS so WIPE above stays the only source. */
+const wipeVars = [
+  `--pass-1-duration: ${WIPE.cascade[0].duration}ms`,
+  `--pass-1-offset: ${WIPE.cascade[0].offset}ms`,
+  `--pass-2-duration: ${WIPE.cascade[1].duration}ms`,
+  `--pass-2-offset: ${WIPE.cascade[1].offset}ms`,
+  `--pass-3-duration: ${WIPE.cascade[2].duration}ms`,
+  `--pass-3-offset: ${WIPE.cascade[2].offset}ms`,
+  `--single-duration: ${WIPE.single.duration}ms`,
+].join("; ");
+
+---
+
+{/* The section is two tall columns with no single top edge worth landing on
+    — the testimonial card starts at the top of one and the statement sits
+    lower in the other — so the snap centres it in the viewport instead of
+    filing its top under the navbar. See SmoothScroll.astro. */}
+<section
+  class="about-mission"
+  aria-labelledby="mission-heading"
+  data-snap-align="center"
+>
+  <article
+    class="testimonial"
+    aria-label="Customer testimonials"
+    aria-roledescription="carousel"
+    data-testimonial-carousel
+  >
+    {
+      total > 0 ? (
+        <>
+          <div class="testimonial__slides">
+            {testimonials.map((testimonial, index) => (
+              <div
+                class:list={["testimonial__slide", { "is-current": index === 0 }]}
+                data-slide
+                aria-roledescription="slide"
+                aria-label={`${index + 1} of ${total}`}
+              >
+                <header class="testimonial__author">
+                  {testimonial.portraitUrl && (
+                    <img
+                      src={`${testimonial.portraitUrl}?w=128&h=128&fit=crop&auto=format`}
+                      alt={testimonial.portraitAlt ?? ""}
+                      width="64"
+                      height="64"
+                      loading="lazy"
+                    />
+                  )}
+                  <p>
+                    <strong>{testimonial.name}</strong>
+                    <span>{testimonial.role}</span>
+                  </p>
+                </header>
+
+                <blockquote>
+                  {/* Which words share a line is a question about the reader's
+                      viewport, not about the content, so the boxes ship from
+                      here and the grouping happens on the client. */}
+                  <p data-quote>
+                    {toWords(`“${testimonial.quote}”`).map((chunk) =>
+                      chunk.isSpace ? (
+                        chunk.text
+                      ) : (
+                        <span class="word">{chunk.text}</span>
+                      ),
+                    )}
+                  </p>
+                </blockquote>
+              </div>
+            ))}
+          </div>
+
+          {total > 1 && (
+            <footer class="testimonial__footer">
+              <div class="testimonial__controls" aria-label="Testimonial navigation">
+                <Button label="Previous testimonial" ariaLabel="Previous testimonial">
+                  <svg slot="icon-start" viewBox="0 0 24 24" fill="none">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M11.0012 4.37866L3.37988 12L11.0012 19.6213L13.1225 17.5L9.12252 13.5H22.0012V10.5H9.12253L13.1225 6.49999L11.0012 4.37866Z" fill="currentColor" />
+                  </svg>
+                </Button>
+                <Button label="Next testimonial" ariaLabel="Next testimonial">
+                  <svg slot="icon-end" viewBox="0 0 24 24" fill="none">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M14 4.37866L21.6213 12L14 19.6213L11.8787 17.5L15.8787 13.5H3V10.5H15.8787L11.8787 6.49999L14 4.37866Z" fill="currentColor" />
+                  </svg>
+                </Button>
+              </div>
+              {/* The index is a number that goes up and down, so it moves
+                  like one: each digit is a strip of 0-9 behind a one-line
+                  window, and the strip slides to the digit it has to show.
+                  Nothing fades — a fade would say the number had been replaced,
+                  where the reader has just counted one step along the list.
+
+                  The strips are decoration, so the flat reading is kept beside
+                  them for the live region to announce. */}
+              <span class="testimonial__count" data-count aria-live="polite">
+                {/* Both the length of the wait and the drawing of it. The bar
+                    is not a picture of a timer running elsewhere — it is the
+                    timer, and the slide turns when it reaches the end. */}
+                <span
+                  class="testimonial__progress"
+                  data-progress
+                  aria-hidden="true"
+                />
+                <span class="odometer" aria-hidden="true">
+                  {pad(1)
+                    .split("")
+                    .map((digit) => (
+                      <span
+                        class="odometer__slot"
+                        data-digit
+                        style={`--d: ${digit}`}
+                      >
+                        <span class="odometer__strip">
+                          {DIGITS.map((value) => (
+                            <span>{value}</span>
+                          ))}
+                        </span>
+                      </span>
+                    ))}
+                  <span class="odometer__total">/{pad(total)}</span>
+                </span>
+                <span class="visually-hidden" data-count-text>
+                  {pad(1)}/{pad(total)}
+                </span>
+              </span>
+            </footer>
+          )}
+        </>
+      ) : (
+        <p class="testimonial__empty">Customer testimonials coming soon.</p>
+      )
+    }
+  </article>
+
+  <div class="statement">
+    {/* The split is decoration, so the heading names itself with the flat
+        sentence and the word boxes are hidden from assistive technology
+        rather than read out as fragments. */}
+    <h2
+      id="mission-heading"
+      data-reveal
+      aria-label={content.statement}
+      style={`--stagger: ${statementStagger}ms; ${wipeVars}`}
+    >
+      <span aria-hidden="true">
+        {
+          statementSegments.map((segment) => (
+            <span class={segment.className}>
+              {segment.chunks.map((chunk) =>
+                chunk.index === null ? (
+                  chunk.text
+                ) : (
+                  <span
+                    class:list={[
+                      "word",
+                      {
+                        "word--wipe": segment.isWipe,
+                        "word--single": segment.isWipe && !segment.cascade,
+                        "word--joined": segment.cascade,
+                      },
+                    ]}
+                    style={`--i: ${chunk.index}${
+                      chunk.wipeAt === null
+                        ? ""
+                        : `; --wipe-delay: ${chunk.wipeAt}ms; --wipe-span: ${chunk.wipeSpan}ms`
+                    }`}
+                  >
+                    {chunk.text}
+                    {/* Copies of the same word stacked over each other, each
+                        opening its clip left to right in turn — three of them
+                        where the colour cascades, one where it does not. On a
+                        wiped word the white is a copy too, and is taken away
+                        by the same front that brings the colour in; the word's
+                        own glyphs are transparent and only hold the box open.
+                        Hidden from assistive technology already, by the
+                        aria-hidden above. */}
+                    {segment.isWipe && (
+                      <span class="word__ink word__ink--base">
+                        {chunk.text}
+                      </span>
+                    )}
+                    {segment.cascade && (
+                      <>
+                        <span class="word__ink word__ink--first">
+                          {chunk.text}
+                        </span>
+                        <span class="word__ink word__ink--second">
+                          {chunk.text}
+                        </span>
+                      </>
+                    )}
+                    {segment.isWipe && (
+                      <span class="word__ink word__ink--final">
+                        {chunk.text}
+                      </span>
+                    )}
+                  </span>
+                ),
+              )}
+            </span>
+          ))
+        }
+      </span>
+    </h2>
+    <Button href={content.callToActionHref} variant="green">
+      {content.callToActionLabel}
+      <svg slot="icon-end" viewBox="0 0 24 24" fill="none">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M14 4.37866L21.6213 12L14 19.6213L11.8787 17.5L15.8787 13.5H3V10.5H15.8787L11.8787 6.49999L14 4.37866Z" fill="currentColor"></path>
+      </svg>
+    </Button>
+  </div>
+
+  <VerticalEdges />
+</section>
+
+<script>
+  import "../../scripts/reveal";
+
+  // One testimonial is visible at a time; the arrows wrap around the list and
+  // the counter tracks the position, matching the Figma carousel.
+  //
+  // The two quotes cross over rather than cutting, because the swap answers a
+  // press and a hard cut on a control the reader just used reads as a fault
+  // rather than as speed. The outgoing quote leaves in the direction of travel
+  // and the incoming one arrives from the opposite edge, so forward and back
+  // are told apart by the motion and not only by the counter.
+  const OUT_MS = 180;
+
+  document
+    .querySelectorAll<HTMLElement>("[data-testimonial-carousel]")
+    .forEach((carousel) => {
+      const slides = Array.from(
+        carousel.querySelectorAll<HTMLElement>("[data-slide]"),
+      );
+      const controls = carousel.querySelectorAll<HTMLButtonElement>(
+        ".testimonial__controls button",
+      );
+
+      // Which line a word ended up on can only be answered after layout, so it
+      // is answered here and written back as `--line`. Words that landed at the
+      // same offset are the same line; offsets are layout positions, so the
+      // transforms already on the words cannot skew the reading.
+      //
+      // Every quote is measured, not just the visible one: the slides are
+      // stacked in one grid cell and merely hidden, so they all have layout,
+      // and measuring them now means an incoming quote is never grouped in the
+      // same frame it is asked to move.
+      const quotes = Array.from(
+        carousel.querySelectorAll<HTMLElement>("[data-quote]"),
+      );
+
+      const measureLines = () => {
+        for (const quote of quotes) {
+          let line = -1;
+          let top: number | null = null;
+          for (const word of quote.querySelectorAll<HTMLElement>(".word")) {
+            if (top === null || word.offsetTop !== top) {
+              top = word.offsetTop;
+              line += 1;
+            }
+            word.style.setProperty("--line", String(line));
+          }
+        }
+      };
+
+      let pending = 0;
+      const remeasure = () => {
+        cancelAnimationFrame(pending);
+        pending = requestAnimationFrame(measureLines);
+      };
+
+      measureLines();
+      // A line break moves when the column does and when the real face of the
+      // typeface finally lands, so both are worth listening for.
+      window.addEventListener("resize", remeasure);
+      document.fonts?.ready.then(measureLines);
+
+      if (slides.length < 2 || controls.length < 2) {
+        return;
+      }
+
+      const [previous, next] = controls;
+      const count = carousel.querySelector<HTMLElement>("[data-count]");
+      const progress = carousel.querySelector<HTMLElement>("[data-progress]");
+      const digits = Array.from(
+        carousel.querySelectorAll<HTMLElement>("[data-digit]"),
+      );
+      const countText = carousel.querySelector<HTMLElement>("[data-count-text]");
+      const pad = (value: number) => String(value).padStart(2, "0");
+
+      // Removed and re-added rather than reset: an animation restarts from
+      // zero, which is exactly what a wait that has just been overtaken by a
+      // press should do.
+      const restart = () => {
+        if (!progress) {
+          return;
+        }
+        progress.classList.remove("is-running");
+        void progress.offsetWidth;
+        progress.classList.add("is-running");
+      };
+
+      // Each digit window is told which digit to show; the strip behind it does
+      // the travelling, so 1 to 2 and 3 back to 1 are the same instruction in
+      // opposite directions rather than two different animations.
+      const setCount = (position: number) => {
+        const reading = pad(position + 1);
+        digits.forEach((slot, digit) => {
+          slot.style.setProperty("--d", reading[digit] ?? "0");
+        });
+        if (countText) {
+          countText.textContent = `${reading}/${pad(slides.length)}`;
+        }
+      };
+      let index = 0;
+      let leaving: number | undefined;
+
+      const show = (target: number, direction: number, manual = false) => {
+        const nextIndex = (target + slides.length) % slides.length;
+        if (nextIndex === index) {
+          return;
+        }
+
+        const outgoing = slides[index];
+        const incoming = slides[nextIndex];
+        index = nextIndex;
+
+        // A slide waiting off screen sits at the entry offset for the current
+        // direction and does not transition there, so flipping the direction
+        // has to be committed before the incoming slide starts moving —
+        // otherwise it would travel from the old edge instead of the new one.
+        carousel.style.setProperty("--dir", String(direction));
+        void incoming.offsetWidth;
+
+        window.clearTimeout(leaving);
+        slides.forEach((slide) => slide.classList.remove("is-leaving"));
+        outgoing.classList.remove("is-current");
+        outgoing.classList.add("is-leaving");
+        incoming.classList.add("is-current");
+        leaving = window.setTimeout(
+          () => outgoing.classList.remove("is-leaving"),
+          OUT_MS,
+        );
+
+        // A slide that turned on its own was not asked for, so it is not worth
+        // interrupting a screen reader over; one the reader pressed for is.
+        count?.setAttribute("aria-live", manual ? "polite" : "off");
+        setCount(index);
+        restart();
+      };
+
+      previous.addEventListener("click", () => show(index - 1, -1, true));
+      next.addEventListener("click", () => show(index + 1, 1, true));
+
+      // The bar is the clock, so the slide turns when the bar finishes rather
+      // than on a timer of its own. One clock cannot drift out of step with
+      // itself, and pausing the drawing pauses the wait for free — including
+      // under reduced motion, where the CSS gives the bar no animation at all
+      // and the carousel simply never advances by itself.
+      progress?.addEventListener("animationend", () => show(index + 1, 1));
+
+      // Paused whenever the reader is unlikely to want it moving: while they
+      // are reading it, while they are tabbing through it, while it is off
+      // screen, and while the tab is in the background.
+      let hovered = false;
+      let focused = false;
+      let onscreen = true;
+
+      const updatePlayback = () => {
+        const paused =
+          hovered || focused || !onscreen || document.visibilityState === "hidden";
+        progress?.classList.toggle("is-paused", paused);
+      };
+
+      carousel.addEventListener("pointerenter", () => {
+        hovered = true;
+        updatePlayback();
+      });
+      carousel.addEventListener("pointerleave", () => {
+        hovered = false;
+        updatePlayback();
+      });
+      carousel.addEventListener("focusin", () => {
+        focused = true;
+        updatePlayback();
+      });
+      carousel.addEventListener("focusout", () => {
+        focused = false;
+        updatePlayback();
+      });
+      document.addEventListener("visibilitychange", updatePlayback);
+
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(
+          ([entry]) => {
+            onscreen = entry.isIntersecting;
+            updatePlayback();
+          },
+          { threshold: 0.2 },
+        ).observe(carousel);
+      }
+
+      restart();
+      updatePlayback();
+    });
+</script>
+
+<style>
+  .about-mission {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--grid-gutter);
+    min-height: 610px;
+    padding: clamp(176px, 19.4vw, 280px) var(--grid-margin);
+    position: relative;
+  }
+
+  .testimonial {
+    /* The swap is one gesture, so its lengths are declared together: out, in,
+       the hold before the entry starts, the gap between two parts of the card,
+       and the gap between two lines of the quote. They are plain values, not
+       sums — a delay that reads --i has to be written where --i is, which is
+       on the part itself further down. */
+    /* Long enough to read a short quote without being asked to. */
+    --autoplay: 7000ms;
+    --swap-out: 180ms;
+    --swap-in: 240ms;
+    --swap-base: 40ms;
+    --swap-step: 50ms;
+    --swap-line-step: 45ms;
+
+    grid-column: 2 / span 4;
+    display: flex;
+    min-height: 350px;
+    flex-direction: column;
+    color: var(--ink-secondary);
+  }
+
+  /* The quotes are stacked in one cell so they can cross over each other, which
+     also stops the block from resizing between two quotes of different
+     lengths: the stack is as tall as the longest of them, always. */
+  .testimonial__slides {
+    display: grid;
+  }
+
+  /* The slide itself only decides whether it is in the room. What arrives and
+     in what order is decided by its parts below, so the card assembles rather
+     than sliding in whole. */
+  .testimonial__slide {
+    grid-area: 1 / 1;
+    visibility: hidden;
+  }
+
+  .testimonial__slide.is-current,
+  .testimonial__slide.is-leaving {
+    visibility: visible;
+  }
+
+  /* The order the card is read in: face, name, role, then what they said.
+     The step is short because this answers a press — four pieces at a
+     comfortable reading stagger would put the quote half a second behind the
+     button, which is the reader waiting on the interface. */
+  .testimonial__author img {
+    --i: 0;
+  }
+
+  .testimonial__author strong {
+    --i: 1;
+  }
+
+  .testimonial__author span {
+    --i: 2;
+  }
+
+  .testimonial blockquote {
+    --i: 3;
+  }
+
+  /* A waiting part sits one step ahead on the axis of travel and does not
+     transition there, so it is already at the right edge the moment it is
+     asked to come in. The first slide is server-rendered current, so nothing
+     here animates on load: a transition only fires on a change. */
+  .testimonial__author img,
+  .testimonial__author strong,
+  .testimonial__author span {
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * 8px));
+  }
+
+  /* The quote travels the same way the rest of the card does, but a line at a
+     time rather than as a block: four lines arriving together would be the one
+     part of the card that did not assemble. The words carry the motion because
+     a line is not an element — it is a group of words that happened to land at
+     the same height, and `--line` is where the script writes that down. */
+  .testimonial blockquote .word {
+    display: inline-block;
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * 8px));
+  }
+
+  .testimonial__slide.is-current .testimonial__author img,
+  .testimonial__slide.is-current .testimonial__author strong,
+  .testimonial__slide.is-current .testimonial__author span {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--swap-in) var(--ease-out-strong)
+        calc(var(--swap-base) + var(--i, 0) * var(--swap-step)),
+      transform var(--swap-in) var(--ease-out-strong)
+        calc(var(--swap-base) + var(--i, 0) * var(--swap-step));
+  }
+
+  /* The quote picks up where the card left off — its first line is the fourth
+     part to arrive — and then runs on its own, shorter step, so the lines read
+     as one paragraph filling in rather than four more pieces of the card. */
+  .testimonial__slide.is-current blockquote .word {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--swap-in) var(--ease-out-strong)
+        calc(
+          var(--swap-base) + var(--i, 0) * var(--swap-step) + var(--line, 0) *
+            var(--swap-line-step)
+        ),
+      transform var(--swap-in) var(--ease-out-strong)
+        calc(
+          var(--swap-base) + var(--i, 0) * var(--swap-step) + var(--line, 0) *
+            var(--swap-line-step)
+        );
+  }
+
+  /* The exit is one move for the whole card, unstaggered and shorter than the
+     entry. The reader has already decided to leave this quote, so taking it
+     apart piece by piece on the way out only delays the one they asked for.
+     Kept in step with OUT_MS in the script above. */
+  .testimonial__slide.is-leaving .testimonial__author img,
+  .testimonial__slide.is-leaving .testimonial__author strong,
+  .testimonial__slide.is-leaving .testimonial__author span,
+  .testimonial__slide.is-leaving blockquote .word {
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * -8px));
+    transition:
+      opacity var(--swap-out) var(--ease-out-strong),
+      transform var(--swap-out) var(--ease-out-strong);
+  }
+
+  /* Boxes rather than baselines: a digit window clips its strip, and the
+     baseline of an element that clips is its bottom edge, which would drop the
+     digits below the "/03" beside them. Aligning the three boxes by their
+     centres sidesteps that entirely. */
+  .odometer {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .odometer__slot {
+    display: block;
+    height: var(--count-line);
+    overflow: hidden;
+  }
+
+  .odometer__total {
+    display: block;
+    height: var(--count-line);
+  }
+
+  /* The strip is ten lines tall, so one digit is a tenth of it. Moving it by a
+     percentage of its own height means the transform never has to know what a
+     line measures. */
+  .odometer__strip {
+    display: block;
+    transform: translateY(calc(var(--d, 0) * -10%));
+    transition: transform 380ms var(--ease-out-strong);
+  }
+
+  .odometer__strip span {
+    display: block;
+    height: var(--count-line);
+  }
+
+  .testimonial__author {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .testimonial__author img {
+    width: 64px;
+    height: 64px;
+    flex: 0 0 auto;
+    object-fit: cover;
+    filter: grayscale(1);
+  }
+
+  .testimonial__author p {
+    display: grid;
+    margin: 0;
+    font-family: var(--font-mono);
+    line-height: 1.35;
+  }
+
+  .testimonial__author strong {
+    color: var(--ink-primary);
+    font-weight: var(--weight-regular);
+  }
+
+  .testimonial blockquote {
+    max-width: 350px;
+    margin: 32px 0 0;
+  }
+
+  .testimonial blockquote p,
+  .testimonial__empty {
+    margin: 0;
+    font-size: var(--text-b2);
+    letter-spacing: var(--tracking-body);
+    line-height: 1.3;
+  }
+
+  .testimonial__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 375px;
+    margin-top: auto;
+  }
+
+  .testimonial__controls {
+    display: flex;
+    gap: 16px;
+  }
+
+  .testimonial__controls :global(.button) {
+    width: var(--navbar-height);
+    padding-inline: 0;
+    border: 0;
+    background-color: rgb(var(--color-accent-rgb) / 0.2);
+    color: var(--color-accent);
+  }
+
+  .testimonial__controls :global(.button:hover),
+  .testimonial__controls :global(.button:focus-visible) {
+    background-color: rgb(var(--color-accent-rgb) / 0.4);
+  }
+
+  .testimonial__count {
+    /* Shared by the counter's line box and by the digit windows that clip
+       against it, so the two can never disagree. */
+    --count-line: 24px;
+
+    position: relative;
+    min-width: 92px;
+    font-family: var(--font-mono);
+    padding: 18px;
+    background-color: rgb(var(--color-paper-rgb) / 0.1);
+    color: var(--ink-secondary);
+    font-size: var(--text-b3);
+    line-height: var(--count-line);
+    text-align: center;
+  }
+
+  /* Drawn along the bottom edge of the counter, which is the one part of the
+     carousel that is already about position in the list. Scaled rather than
+     widened so the drawing costs a composite and nothing else, and linear
+     because it stands for time passing, which does not speed up or slow down. */
+  .testimonial__progress {
+    position: absolute;
+    inset: auto 0 0;
+    height: var(--border-hairline-width);
+    background-color: var(--color-accent);
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  @keyframes count-progress {
+    from {
+      transform: scaleX(0);
+    }
+
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .testimonial__progress.is-running {
+    animation: count-progress var(--autoplay) linear forwards;
+  }
+
+  .testimonial__progress.is-paused {
+    animation-play-state: paused;
+  }
+
+  .statement {
+    grid-column: 6 / span 7;
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 36px;
+  }
+
+  .statement h2 {
+    /* 6 of the section's 12 columns, measured inside the 7-column .statement */
+    max-width: calc((6 * 100% - 2 * var(--grid-gutter)) / 7);
+    margin: 0;
+    font-size: var(--text-h2);
+    font-weight: var(--weight-regular);
+    line-height: 1.05;
+  }
+
+  /* The statement is the one place on the page where the copy itself arrives,
+     so it is the one place that spends a blur. It is a single block with no
+     video under it, which is what makes fifteen or so filtered boxes
+     affordable here and nowhere else. */
+  .statement .word {
+    display: inline-block;
+  }
+
+  :global(.js) .statement h2 .word {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(6px);
+  }
+
+  /* The transition lives on the revealed state alone: the entrance happens
+     once, so there is nothing to animate back to. Every word keeps its own
+     place in the queue all the way to the last one — the step itself is what
+     shrinks on a long sentence, set on the heading above. */
+  :global(.js) .statement h2.is-revealed .word {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+    transition:
+      opacity var(--transition-text),
+      transform var(--transition-text),
+      filter var(--transition-text);
+    transition-delay: calc(var(--i, 0) * var(--stagger, 40ms));
+  }
+
+  /* Colour wipe on the words the sentence is about. Each ink is a full copy
+     of the word stacked over the base one and revealed by opening its clip
+     from the left; clip-path has no layout effect and is composited, so three
+     stacked copies cost nothing to sweep across. Same treatment the closing
+     word of the contact heading takes. */
+  /* --wipe-delay, the moment this word's turn comes, and --wipe-span, how
+     long its turn lasts, are both written onto the word itself above: only
+     the frontmatter knows which words cascade and so where each turn ends. */
+  /* The word's own glyphs are never painted on a wiped word: they hold the box
+     open and the stacked copies do all the drawing. Leaving them white and
+     taking them away at the end of the wipe — which is what this used to do —
+     put a white glyph under every coloured one for the length of the sweep,
+     and an opaque colour over white still shows the white through its own
+     antialiased edge. That fringe is what read as a faint outline. */
+  .word--wipe {
+    position: relative;
+    color: transparent;
+
+    /* How far ahead of the colour the white is taken away. See --base. */
+    --base-lead: 30ms;
+  }
+
+  /* Two words in one box. An inline-block is shrink-to-fit, so it would wrap
+     inside itself the moment the line ran short — and a box on two lines is
+     two boxes as far as the clip is concerned, which would sweep across both
+     at once. Held on one line, the pair moves to the next line whole instead,
+     which is the point of joining it. */
+  .word--joined {
+    white-space: nowrap;
+  }
+
+  /* A word painted once has nothing to wait behind, so its single pass starts
+     the moment its turn comes. */
+  .word--single .word__ink--final {
+    --wipe-duration: var(--single-duration);
+    --wipe-offset: 0ms;
+  }
+
+
+  /* The clip is opened past the edges of the box rather than to them. A word
+     box is only as tall as the heading's line-height, which at 1.05 is shorter
+     than the face's own ascenders and descenders, and glyphs routinely paint
+     a little wider than the advance they are given — so a clip that stopped at
+     the box would shave the tops, the tails and the last letter of every word
+     it passed over. Negative insets grow the clip region instead, so what the
+     wipe reveals is the whole glyph. Raise --ink-bleed if a face with taller
+     extremes ever gets clipped again; it costs nothing but overdraw. */
+  .word__ink {
+    --ink-bleed: 0.3em;
+
+    position: absolute;
+    top: 0;
+    left: 0;
+    clip-path: inset(calc(-1 * var(--ink-bleed)) 100% calc(-1 * var(--ink-bleed)) calc(-1 * var(--ink-bleed)));
+    white-space: pre;
+  }
+
+  /* The white the word arrives in, and the one layer that starts uncovered and
+     is clipped away rather than opened. Its front is the leading pass's front,
+     set a hair earlier so the white is always gone just before the colour
+     lands rather than just after: two fronts meeting exactly would put the
+     colour's antialiased edge back on top of white, which is the outline this
+     exists to remove. What the lead leaves in its place is the page itself,
+     and dark on dark is nothing to see. */
+  .word__ink--base {
+    color: var(--ink-primary);
+    clip-path: inset(calc(-1 * var(--ink-bleed)));
+    --wipe-duration: var(--pass-1-duration);
+    --wipe-offset: calc(var(--pass-1-offset) - var(--base-lead));
+  }
+
+  /* One pass to stay ahead of instead of three. */
+  .word--single .word__ink--base {
+    --wipe-duration: var(--single-duration);
+    --wipe-offset: calc(-1 * var(--base-lead));
+  }
+
+  /* Two passes before the colour the word is left in, each starting before
+     the one before it has finished, so the three read as a single cascade
+     rather than three separate wipes. The passes are named by the segment
+     below, so no word is ever wiped in the colour it is about to settle on.
+     Their lengths come from WIPE in the frontmatter. */
+  .word__ink--first {
+    color: var(--wipe-1);
+    --wipe-duration: var(--pass-1-duration);
+    --wipe-offset: var(--pass-1-offset);
+  }
+
+  .word__ink--second {
+    color: var(--wipe-2);
+    --wipe-duration: var(--pass-2-duration);
+    --wipe-offset: var(--pass-2-offset);
+  }
+
+  .word__ink--final {
+    color: var(--word-color);
+    --wipe-duration: var(--pass-3-duration);
+    --wipe-offset: var(--pass-3-offset);
+  }
+
+  /* Named for this component, not for what it does: ContactCta.astro runs a
+     wipe of its own, and @keyframes is a document-wide name in Astro rather
+     than a scoped one — two `word-wipe` rules on the same page means whichever
+     stylesheet lands last silently wins for both. That collision is what was
+     clipping this heading to its box edges and shaving the glyphs. */
+  @keyframes statement-wipe {
+    to {
+      clip-path: inset(calc(-1 * var(--ink-bleed)) calc(-1 * var(--ink-bleed)) calc(-1 * var(--ink-bleed)) calc(-1 * var(--ink-bleed)));
+    }
+  }
+
+  /* The colours arrive one word at a time: --wipe-delay is when this word's
+     turn comes and --wipe-span is how long that turn lasts, so each word is
+     fully painted before the next one starts.
+
+     Retiring is a second, instant animation on the same element, delayed to
+     the moment the final ink has finished covering this word: by then the two
+     passes underneath are hidden behind an opaque copy of the same glyphs, so
+     dropping them is invisible and leaves one layer per word standing rather
+     than four. */
+  :global(.js) .statement h2.is-revealed .word__ink {
+    animation:
+      statement-wipe var(--wipe-duration) var(--ease-out-strong)
+        calc(var(--wipe-delay) + var(--wipe-offset)) forwards,
+      ink-retire 1ms linear calc(var(--wipe-delay) + var(--wipe-span)) forwards;
+  }
+
+  /* The final ink is the layer that stays, so it is the one thing the retire
+     does not apply to. */
+  :global(.js) .statement h2.is-revealed .word__ink--final {
+    animation:
+      statement-wipe var(--wipe-duration) var(--ease-out-strong)
+        calc(var(--wipe-delay) + var(--wipe-offset)) forwards;
+  }
+
+  /* The white runs the same sweep in reverse — its left edge travels with the
+     front rather than its right edge — so the two are one movement: colour
+     arriving is white leaving. It retires with the passes it was covering. */
+  :global(.js) .statement h2.is-revealed .word__ink--base {
+    animation:
+      statement-unwipe var(--wipe-duration) var(--ease-out-strong)
+        calc(var(--wipe-delay) + var(--wipe-offset)) forwards,
+      ink-retire 1ms linear calc(var(--wipe-delay) + var(--wipe-span)) forwards;
+  }
+
+  @keyframes statement-unwipe {
+    to {
+      clip-path: inset(calc(-1 * var(--ink-bleed)) calc(-1 * var(--ink-bleed)) calc(-1 * var(--ink-bleed)) 100%);
+    }
+  }
+
+  @keyframes ink-retire {
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* No script, no reveal — so the word is left in the colour the wipe would
+     have landed on rather than the plain ink it starts from, and the white
+     copy that the wipe would have taken away is never shown. */
+  :global(html:not(.js)) .statement .word__ink--final {
+    clip-path: none;
+  }
+
+  :global(html:not(.js)) .statement .word__ink--base {
+    display: none;
+  }
+
+  /* Gentler, not gone: the sentence still resolves into place, it just does
+     not travel or defocus to get there. */
+  @media (prefers-reduced-motion: reduce) {
+    :global(.js) .statement h2 .word {
+      transform: none;
+      filter: none;
+    }
+
+    :global(.js) .statement h2.is-revealed .word {
+      transition: opacity 300ms var(--ease-out-strong);
+      transition-delay: 0s;
+    }
+
+    /* The sweep is decoration; the colour it lands on is design. The word
+       arrives already wearing it instead of being painted three times, so
+       there is nothing left underneath to retire either — the passes, and the
+       white the sweep would have taken away, are simply never shown. */
+    :global(.js) .statement h2.is-revealed .word__ink,
+    :global(.js) .statement h2.is-revealed .word__ink--final,
+    :global(.js) .statement h2.is-revealed .word__ink--base {
+      animation: none;
+    }
+
+    :global(.js) .statement h2.is-revealed .word__ink--first,
+    :global(.js) .statement h2.is-revealed .word__ink--second,
+    :global(.js) .statement h2.is-revealed .word__ink--base {
+      opacity: 0;
+    }
+
+    :global(.js) .statement h2.is-revealed .word__ink--final {
+      clip-path: none;
+    }
+
+    /* The card still changes, it just stops assembling: every part arrives at
+       once, in place, with only the fade left. */
+    .testimonial__author img,
+    .testimonial__author strong,
+    .testimonial__author span,
+    .testimonial blockquote .word {
+      transform: none;
+    }
+
+    .testimonial__slide.is-current .testimonial__author img,
+    .testimonial__slide.is-current .testimonial__author strong,
+    .testimonial__slide.is-current .testimonial__author span,
+    .testimonial__slide.is-current blockquote .word,
+    .testimonial__slide.is-leaving .testimonial__author img,
+    .testimonial__slide.is-leaving .testimonial__author strong,
+    .testimonial__slide.is-leaving .testimonial__author span,
+    .testimonial__slide.is-leaving blockquote .word {
+      transform: none;
+      transition: opacity var(--swap-out) var(--ease-out-strong);
+    }
+
+    /* The digit still changes, it just stops travelling to get there. */
+    .odometer__strip {
+      transition: none;
+    }
+
+    /* No animation is also no clock: with nothing to reach the end, the
+       carousel never turns a slide the reader did not ask for. Content that
+       moves on its own is the thing this setting is most often turned on to
+       stop, so the bar is hidden rather than left sitting empty. */
+    .testimonial__progress {
+      display: none;
+      animation: none;
+    }
+  }
+
+  /* The colour a segment settles in, plus — where the colour cascades — the
+     two it is swept with on the way there. The base word underneath stays in
+     the heading's own ink, since the colour is what arrives, so each segment
+     names its colour as a variable for the final ink rather than painting
+     itself with it. */
+  .statement__brand {
+    --word-color: var(--color-accent);
+    --wipe-1: var(--color-cobalt);
+    --wipe-2: var(--color-magenta);
+  }
+
+  /* No passes to name: these three are painted once, in the colour they
+     settle in. */
+  .statement__brands {
+    --word-color: var(--color-signal);
+  }
+
+  .statement__artists {
+    --word-color: var(--color-magenta);
+  }
+
+  .statement__creators {
+    --word-color: var(--color-cobalt);
+  }
+
+  .statement :global(.button) {
+    border: 0;
+  }
+
+  @media (max-width: 899px) {
+    .about-mission {
+      min-height: auto;
+    }
+
+    .testimonial,
+    .statement {
+      grid-column: 1 / -1;
+    }
+
+    .statement {
+      margin-top: clamp(64px, 10vw, 96px);
+    }
+
+    .statement h2 {
+      max-width: none;
+    }
+  }
+
+  @media (max-width: 499px) {
+    .testimonial__footer {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 16px;
+    }
+  }
+</style>

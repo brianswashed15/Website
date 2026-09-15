@@ -1,5 +1,11 @@
 [build]
-  publish = "."
+  command = "npm run build:local"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PUBLIC_SANITY_PROJECT_ID = "uieb2l00"
+  PUBLIC_SANITY_DATASET = "production"
 
 [[headers]]
   for = "/*"
@@ -7,14 +13,3 @@
     X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-
-# Clean URLs (optional — keeps .html out of the address bar)
-[[redirects]]
-  from = "/work"
-  to = "/work.html"
-  status = 200
-
-[[redirects]]
-  from = "/college"
-  to = "/college.html"
-  status = 200

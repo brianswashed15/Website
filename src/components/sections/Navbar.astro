@@ -1,0 +1,372 @@
+---
+import BrandMark from "../ui/BrandMark.astro"; // hello
+import Button from "../ui/Button.astro";
+import VerticalEdges from "../ui/VerticalEdges.astro";
+import { getNavigation, type Navigation } from "../../lib/sanity";
+
+interface Props {
+  navigation?: Navigation;
+}
+
+const { navigation = await getNavigation() } = Astro.props;
+const { wordmark, logoUrl, logoAlt, links } = navigation;
+---
+
+<header class="navbar" data-navbar>
+  <a class="navbar__brand" href="/">
+    {
+      logoUrl ? (
+        <img
+          class="navbar__logo"
+          src={logoUrl}
+          alt={logoAlt ?? ""}
+          width="43"
+          height="43"
+        />
+      ) : (
+        <BrandMark title={wordmark} />
+      )
+    }
+    <span class="navbar__wordmark">{wordmark}</span>
+  </a>
+
+  {/* Mobile only. Hidden from the desktop layout in CSS rather than removed,
+      so the panel it controls is the same nav element at every width. */}
+  <button
+    class="navbar__toggle"
+    type="button"
+    aria-label="Open menu"
+    aria-expanded="false"
+    aria-controls="primary-nav"
+    data-nav-toggle
+  >
+    <span class="navbar__bars" aria-hidden="true">
+      <span></span>
+      <span></span>
+    </span>
+  </button>
+
+  <nav class="navbar__nav" id="primary-nav" aria-label="Primary navigation">
+    {
+      links.map((link) => (
+        <Button
+          href={link.href}
+          variant={link.variant}
+          arrow={link.arrow && link.href !== "#contact"}
+          external={link.external}
+        >
+          {link.label}
+          {
+            link.arrow && link.href === "#contact" && (
+              <svg slot="icon-end" viewBox="0 0 24 24" fill="none">
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M14 4.37866L21.6213 12L14 19.6213L11.8787 17.5L15.8787 13.5H3V10.5H15.8787L11.8787 6.49999L14 4.37866Z"
+                  fill="currentColor"
+                />
+              </svg>
+            )
+          }
+        </Button>
+      ))
+    }
+  </nav>
+  <span class="navbar__hover-corners" data-navbar-corners aria-hidden="true"></span>
+  <VerticalEdges />
+</header>
+
+<style>
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--grid-gutter);
+    min-height: var(--navbar-height);
+    padding-inline: var(--grid-margin);
+    /* Bottom hairline lives in the padding box so vertical edges can overlap it. */
+    background:
+      linear-gradient(var(--border-hairline), var(--border-hairline))
+        left bottom / 100% var(--border-hairline-width) no-repeat,
+      var(--surface-page);
+  }
+
+  .navbar__brand {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    padding-inline-start: 16px;
+    color: var(--color-paper);
+    text-decoration: none;
+  }
+
+  .navbar__logo {
+    height: calc(var(--text-h3) * 1.333);
+    width: auto;
+    object-fit: contain;
+  }
+
+  .navbar__wordmark {
+    font-family: var(--font-heading);
+    font-size: var(--text-h3);
+    font-weight: 500;
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-heading);
+  }
+
+  .navbar__nav {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .navbar__nav :global(.button) {
+    position: relative;
+  }
+
+  .navbar__hover-corners {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    width: var(--navbar-corner-width, 0px);
+    height: var(--navbar-corner-height, 0px);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(var(--navbar-corner-x, 0px), var(--navbar-corner-y, 0px), 0);
+    transition:
+      transform 200ms cubic-bezier(0.645, 0.045, 0.355, 1),
+      width 200ms cubic-bezier(0.645, 0.045, 0.355, 1),
+      height 200ms cubic-bezier(0.645, 0.045, 0.355, 1),
+      opacity var(--transition-hover);
+    will-change: transform, width, height;
+  }
+
+  .navbar__hover-corners::before,
+  .navbar__hover-corners::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .navbar__hover-corners::before {
+    background:
+      linear-gradient(var(--color-paper), var(--color-paper)) left top / 8px var(--border-hairline-width) no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right top / 8px var(--border-hairline-width) no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) left bottom / 8px var(--border-hairline-width) no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right bottom / 8px var(--border-hairline-width) no-repeat;
+  }
+
+  .navbar__hover-corners::after {
+    background:
+      linear-gradient(var(--color-paper), var(--color-paper)) left top / var(--border-hairline-width) 8px no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right top / var(--border-hairline-width) 8px no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) left bottom / var(--border-hairline-width) 8px no-repeat,
+      linear-gradient(var(--color-paper), var(--color-paper)) right bottom / var(--border-hairline-width) 8px no-repeat;
+  }
+
+  .navbar__hover-corners.is-visible {
+    opacity: 1;
+  }
+
+  .navbar__toggle {
+    display: none;
+    /* Squares off against the navbar hairline the way the buttons do, and
+       gives the tap target the full 60px bar height. */
+    place-items: center;
+    width: var(--navbar-height);
+    min-height: var(--navbar-height);
+    /* The panel is fixed to the viewport; keep the control above it. */
+    position: relative;
+    z-index: 1;
+    padding: 0;
+    border: 0;
+    background-color: var(--button-white-surface);
+    color: var(--button-white-text);
+    cursor: pointer;
+    transition: background-color var(--transition-hover);
+  }
+
+  .navbar__toggle:hover,
+  .navbar__toggle:focus-visible {
+    background-color: var(--button-white-surface-hover);
+  }
+
+  .navbar__bars {
+    position: relative;
+    width: 22px;
+    height: 13px;
+  }
+
+  .navbar__bars span {
+    position: absolute;
+    inset-inline: 0;
+    height: 2px;
+    background-color: currentColor;
+    transition:
+      top var(--transition-hover),
+      transform var(--transition-hover);
+  }
+
+  .navbar__bars span:first-child {
+    top: 0;
+  }
+
+  .navbar__bars span:last-child {
+    top: 11px;
+  }
+
+  /* Open: the two bars meet in the middle and cross. */
+  .navbar[data-nav-open] .navbar__bars span {
+    top: 5px;
+  }
+
+  .navbar[data-nav-open] .navbar__bars span:first-child {
+    transform: rotate(45deg);
+  }
+
+  .navbar[data-nav-open] .navbar__bars span:last-child {
+    transform: rotate(-45deg);
+  }
+
+  @media (max-width: 699px) {
+    .navbar__brand {
+      padding-inline-start: 0;
+    }
+
+    .navbar__toggle {
+      display: grid;
+    }
+
+    /* Full-height sheet under the bar. Fixed, so it ignores the header's
+       inline padding and runs edge to edge like the sections do. */
+    .navbar__nav {
+      position: fixed;
+      inset: var(--navbar-height) 0 0;
+      flex-direction: column;
+      align-items: stretch;
+      overflow-y: auto;
+      background-color: var(--surface-page);
+      opacity: 0;
+      transform: translateY(-8px);
+      visibility: hidden;
+      /* Faster than --transition-reveal: this is aimed at, not read in
+         passing. Visibility is held until the fade ends so the panel stops
+         taking taps only once it is gone. */
+      transition:
+        opacity 200ms ease,
+        transform 200ms ease,
+        visibility 0s linear 200ms;
+    }
+
+    .navbar[data-nav-open] .navbar__nav {
+      opacity: 1;
+      transform: none;
+      visibility: visible;
+      transition:
+        opacity 250ms var(--ease-out-strong),
+        transform 250ms var(--ease-out-strong),
+        visibility 0s;
+    }
+
+    /* Buttons are rendered by Button.astro, so they sit outside this file's
+       scope and need :global to reach. */
+    .navbar__nav :global(.button) {
+      justify-content: flex-start;
+      padding-inline: var(--grid-margin);
+      font-size: var(--text-h2);
+      box-shadow: inset 0 calc(var(--border-hairline-width) * -1) 0
+        var(--border-hairline);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .navbar__toggle,
+    .navbar__bars span,
+    .navbar__nav {
+      transition: none;
+    }
+
+    .navbar__hover-corners {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  const navbar = document.querySelector<HTMLElement>("[data-navbar]");
+  const toggle = navbar?.querySelector<HTMLButtonElement>("[data-nav-toggle]");
+  const nav = navbar?.querySelector<HTMLElement>(".navbar__nav");
+  const corners = navbar?.querySelector<HTMLElement>("[data-navbar-corners]");
+
+  if (navbar && toggle && nav && corners) {
+    // Matches the mobile breakpoint in the styles above.
+    const mobile = window.matchMedia("(max-width: 699px)");
+    const hoverTargets = [
+      navbar.querySelector<HTMLElement>(".navbar__brand"),
+      ...Array.from(nav.querySelectorAll<HTMLElement>(".button")),
+    ].filter((target): target is HTMLElement => target !== null);
+
+    const moveCorners = (target: HTMLElement) => {
+      const navbarRect = navbar.getBoundingClientRect();
+      const rect = target.getBoundingClientRect();
+      corners.style.setProperty("--navbar-corner-x", `${rect.left - navbarRect.left}px`);
+      corners.style.setProperty("--navbar-corner-y", `${rect.top - navbarRect.top}px`);
+      corners.style.setProperty("--navbar-corner-width", `${rect.width}px`);
+      corners.style.setProperty("--navbar-corner-height", `${rect.height}px`);
+      corners.classList.add("is-visible");
+    };
+
+    for (const target of hoverTargets) {
+      target.addEventListener("pointerenter", () => moveCorners(target));
+      target.addEventListener("focus", () => moveCorners(target));
+      target.addEventListener("pointerleave", () => {
+        if (!navbar.matches(":hover")) corners.classList.remove("is-visible");
+      });
+      target.addEventListener("blur", () => {
+        if (!navbar.contains(document.activeElement)) corners.classList.remove("is-visible");
+      });
+    }
+
+    navbar.addEventListener("pointerleave", () => corners.classList.remove("is-visible"));
+
+    const setOpen = (open: boolean) => {
+      navbar.toggleAttribute("data-nav-open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      // The panel covers the page, so the page behind it must not scroll.
+      document.body.classList.toggle("is-nav-open", open);
+    };
+
+    const close = ({ refocus = false } = {}) => {
+      if (!navbar.hasAttribute("data-nav-open")) return;
+      setOpen(false);
+      if (refocus) toggle.focus();
+    };
+
+    toggle.addEventListener("click", () => {
+      setOpen(!navbar.hasAttribute("data-nav-open"));
+    });
+
+    // Every link either navigates or jumps to an anchor on this page; the
+    // second case leaves the panel covering the target, so close either way.
+    nav.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("a")) close();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") close({ refocus: true });
+    });
+
+    // Growing past the breakpoint puts the links back in the bar, where an
+    // open panel and a locked body would both be stale.
+    mobile.addEventListener("change", (event) => {
+      if (!event.matches) close();
+    });
+  }
+</script>

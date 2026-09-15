@@ -1,0 +1,106 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-body);
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--ink-primary);
+  font-size: var(--text-b3);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-body);
+  overscroll-behavior: none;
+}
+
+/* Text selection uses the accent as the highlight so selected copy keeps the
+   brand pairing rather than the browser blue. */
+::selection {
+  background-color: var(--color-accent);
+  color: var(--color-base);
+}
+
+/* Headings. Margins stay at the browser default until the design specifies
+   vertical rhythm. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-heading);
+}
+
+h1 {
+  font-size: var(--text-h1);
+  letter-spacing: var(--tracking-display);
+}
+
+h2 {
+  font-size: var(--text-h2);
+  letter-spacing: var(--tracking-heading);
+}
+
+h3 {
+  font-size: var(--text-h3);
+  letter-spacing: var(--tracking-heading);
+}
+
+h4 {
+  font-size: var(--text-h4);
+  letter-spacing: var(--tracking-tight);
+}
+
+img,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+/* Keeps a heading available to screen readers where the design shows none. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.column-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--grid-gutter);
+  padding-inline: var(--grid-margin);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.column-grid--visible {
+  visibility: visible;
+}
+
+.column-grid span {
+  background: rgb(255 0 0 / 12%);
+  border-inline: 1px solid rgb(255 0 0 / 22%);
+}
+
+/* Set while the mobile navigation panel covers the viewport, so the page
+   behind it does not scroll under the menu. */
+body.is-nav-open {
+  overflow: hidden;
+}
